@@ -3,15 +3,88 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WhisprCatch — you talk, it types</title>
-<meta name="description" content="Open-source push-to-talk dictation. Hold a key, speak, release — punctuated text lands at your cursor, in any app. 100% on your machine. Linux today, macOS coming soon.">
+<title>WhisprCatch — Wispr Flow Alternative for Linux · Free, Open-Source Dictation</title>
+<meta name="description" content="Free, open-source push-to-talk dictation for Linux — the Wispr Flow alternative that runs 100% on-device. Hold a key, speak, and punctuated text lands at your cursor in any app. No cloud, no account, no subscription.">
+<link rel="canonical" href="https://whisper-catch.vercel.app/">
 <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-<meta property="og:title" content="WhisprCatch — you talk, it types">
-<meta property="og:description" content="Open-source push-to-talk dictation that runs entirely on your machine. No cloud, no account, no subscription. Linux today, macOS coming soon.">
-<meta property="og:image" content="https://whisper-catch.vercel.app/assets/icon-512.png">
+<meta property="og:site_name" content="WhisprCatch">
+<meta property="og:title" content="WhisprCatch — the open-source Wispr Flow alternative for Linux">
+<meta property="og:description" content="Push-to-talk dictation that runs entirely on your machine. Hold a key, speak, punctuated text appears in any app. Free, MIT-licensed, zero network calls.">
+<meta property="og:image" content="https://whisper-catch.vercel.app/assets/og-card.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="WhisprCatch dictating a Slack message on a Linux desktop: the listening pill shows while words stream in live">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://whisper-catch.vercel.app/">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="WhisprCatch — the open-source Wispr Flow alternative for Linux">
+<meta name="twitter:description" content="Free push-to-talk dictation for Linux. 100% on-device, punctuated text in any app. No cloud, no subscription.">
+<meta name="twitter:image" content="https://whisper-catch.vercel.app/assets/og-card.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://whisper-catch.vercel.app/#app",
+      "name": "WhisprCatch",
+      "operatingSystem": "Linux",
+      "applicationCategory": "UtilitiesApplication",
+      "applicationSubCategory": "Speech to Text / Dictation",
+      "description": "Free, open-source push-to-talk dictation for Linux. Hold a key, speak, and punctuated, capitalized text is typed at your cursor in any application. Runs 100% on-device — no cloud, no account, no subscription. An open-source alternative to Wispr Flow for Linux users.",
+      "url": "https://whisper-catch.vercel.app/",
+      "downloadUrl": "https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_amd64.deb",
+      "installUrl": "https://whisper-catch.vercel.app/#install",
+      "screenshot": "https://whisper-catch.vercel.app/assets/hero-demo-poster.jpg",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "author": { "@type": "Person", "name": "Aviroop Paul", "url": "https://github.com/AviroopPaul" },
+      "sameAs": ["https://github.com/AviroopPaul/whisper-catch"],
+      "keywords": "wispr flow alternative, wispr flow linux, whisper flow alternative, dictation linux, voice typing linux, speech to text linux, push to talk dictation, offline dictation, open source dictation"
+    },
+    {
+      "@type": "VideoObject",
+      "name": "WhisprCatch demo — push-to-talk dictation into Slack on Linux",
+      "description": "Hold a key, speak, and watch punctuated text land in a Slack message on a Linux desktop. Words stream in live while you talk; transcription runs on-CPU with zero network calls.",
+      "thumbnailUrl": "https://whisper-catch.vercel.app/assets/hero-demo-poster.jpg",
+      "contentUrl": "https://whisper-catch.vercel.app/assets/hero-demo.mp4",
+      "uploadDate": "2026-07-03",
+      "duration": "PT16S"
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is there a Wispr Flow alternative for Linux?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes — WhisprCatch is a free, open-source Wispr Flow alternative built for Linux. It has the same hold-to-talk flow: hold a key, speak, release, and punctuated text is typed at your cursor in any app. Unlike cloud dictation tools it runs entirely on your machine, with no account and no subscription." }
+        },
+        {
+          "@type": "Question",
+          "name": "Is WhisprCatch free?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Completely. It costs $0, requires no account or subscription, and every line of code is MIT-licensed open source on GitHub." }
+        },
+        {
+          "@type": "Question",
+          "name": "Does my voice leave my laptop?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No. Speech recognition runs on your CPU via ONNX Runtime with zero network calls while you dictate — it works fully offline after a one-time model download. Your audio is decoded in memory and never uploaded anywhere." }
+        },
+        {
+          "@type": "Question",
+          "name": "Which Linux distributions does it support?",
+          "acceptedAnswer": { "@type": "Answer", "text": "WhisprCatch ships as a .deb for Ubuntu and Debian on x86-64, and builds from source elsewhere. It types into anything with focus — editors, browsers, chat apps, terminals." }
+        },
+        {
+          "@type": "Question",
+          "name": "Is there a macOS version?",
+          "acceptedAnswer": { "@type": "Answer", "text": "A macOS (Apple Silicon) build is in the works. Join the waitlist on whisper-catch.vercel.app and you'll get one email when it ships." }
+        }
+      ]
+    }
+  ]
+}
+</script>
 <meta name="theme-color" content="#0a0c10">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -285,6 +358,26 @@
     *, *::before, *::after { animation: none !important; transition: none !important; }
     .rise, .reveal { opacity: 1; transform: none; }
   }
+
+  /* ================= faq ================= */
+  .faq-list { margin-top: 44px; max-width: 720px; }
+  details.faq { border-top: 1px solid var(--line); }
+  details.faq:last-child { border-bottom: 1px solid var(--line); }
+  details.faq summary {
+    cursor: pointer; list-style: none; user-select: none;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 20px 2px; font-size: 16.5px; font-weight: 600; letter-spacing: -.01em;
+  }
+  details.faq summary::-webkit-details-marker { display: none; }
+  details.faq summary::after {
+    content: "+"; color: var(--teal); font-size: 20px; font-weight: 400; flex: none;
+    line-height: 1; transition: transform .15s ease;
+  }
+  details.faq[open] summary::after { transform: rotate(45deg); }
+  details.faq .answer { padding: 0 2px 22px; color: var(--dim); font-size: 15px; line-height: 1.65; max-width: 620px; }
+  details.faq .answer a { color: var(--teal); }
+  #faq .lede { max-width: 640px; }
+  #faq .lede b { color: var(--ink); }
 </style>
 </head>
 <body>
@@ -393,6 +486,38 @@
           you're on the list — one email when it ships
         </p>
         <p class="wl-err" role="alert"></p>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ================= faq ================= -->
+  <section id="faq">
+    <div class="wrap">
+      <p class="kicker reveal">FAQ</p>
+      <h2 class="reveal">Questions</h2>
+      <p class="lede reveal" data-d="1">The short version: WhisprCatch is the open-source <b>Wispr Flow alternative for Linux</b> — same hold-to-talk dictation, none of the cloud.</p>
+      <div class="faq-list reveal" data-d="1">
+        <details class="faq">
+          <summary>Is there a Wispr Flow alternative for Linux?</summary>
+          <p class="answer">Yes — that's exactly what WhisprCatch is. Wispr Flow (often searched as "Whisper Flow") doesn't ship a Linux app; WhisprCatch gives you the same flow on Linux: hold a key, speak, release, and punctuated text is typed at your cursor in any app. Free and open source, with no account and no subscription.</p>
+        </details>
+        <details class="faq">
+          <summary>Is it really free?</summary>
+          <p class="answer">Completely. $0 forever, no account, no trial, no subscription. Every line is MIT-licensed on <a href="https://github.com/AviroopPaul/whisper-catch">GitHub</a> — read it, audit it, fork it.</p>
+        </details>
+        <details class="faq">
+          <summary>Does my voice leave my laptop?</summary>
+          <p class="answer">No. Speech-to-text runs on your CPU with zero network calls while you dictate — fully offline after a one-time model download. Your audio is decoded in memory and never uploaded.</p>
+        </details>
+        <details class="faq">
+          <summary>Which Linux distros does it work on?</summary>
+          <p class="answer">Ubuntu and Debian (x86-64) via the .deb today; anything else builds from source. It types into whatever has focus — editors, browsers, chat apps, terminals.</p>
+        </details>
+        <details class="faq">
+          <summary>What about macOS?</summary>
+          <p class="answer">An Apple Silicon build is in the works — join the waitlist above and you'll get exactly one email when it ships.</p>
+        </details>
       </div>
     </div>
   </section>
