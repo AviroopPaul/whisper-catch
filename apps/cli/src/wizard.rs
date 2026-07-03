@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use eframe::egui;
+use wc_models::ModelId;
 
 use crate::theme;
 
@@ -42,13 +43,12 @@ enum DlMsg {
     Failed(String),
 }
 
-pub fn need_setup() -> bool {
-    !wc_hotkey::keyboard_accessible()
-        || !wc_models::PARAKEET_V2_INT8.is_complete(&wc_core::models_dir())
+pub fn need_setup(model: ModelId) -> bool {
+    !wc_hotkey::keyboard_accessible() || !model.spec().is_complete(&wc_core::models_dir())
 }
 
 /// Blocks on the wizard window; returns when setup is complete or abandoned.
-pub fn run(theme_pref: &str) -> Result<Outcome> {
+pub fn run(theme_pref: &str, model: ModelId) -> Result<Outcome> {
     let outcome = Arc::new(Mutex::new(Outcome::Cancelled));
     let out = outcome.clone();
     let pref = theme_pref.to_string();
@@ -66,7 +66,7 @@ pub fn run(theme_pref: &str) -> Result<Outcome> {
         options,
         Box::new(move |cc| {
             theme::apply(&cc.egui_ctx, &pref);
-            Ok(Box::new(Wizard::new(out)) as Box<dyn eframe::App>)
+            Ok(Box::new(Wizard::new(out, model)) as Box<dyn eframe::App>)
         }),
     )
     .map_err(|e| anyhow::anyhow!("setup window failed: {e}"))?;
@@ -79,20 +79,22 @@ pub fn run(theme_pref: &str) -> Result<Outcome> {
 struct Wizard {
     step: Step,
     outcome: Arc<Mutex<Outcome>>,
+    model: ModelId,
 }
 
 impl Wizard {
-    fn new(outcome: Arc<Mutex<Outcome>>) -> Self {
+    fn new(outcome: Arc<Mutex<Outcome>>, model: ModelId) -> Self {
         Self {
             step: Step::Welcome,
             outcome,
+            model,
         }
     }
 }
 
 impl Step {
-    fn first_download() -> Step {
-        if wc_models::PARAKEET_V2_INT8.is_complete(&wc_core::models_dir()) {
+    fn first_download(model: ModelId) -> Step {
+        if model.spec().is_complete(&wc_core::models_dir()) {
             Step::Done
         } else {
             Step::Download {
@@ -100,7 +102,7 @@ impl Step {
                 rx: None,
                 file: String::new(),
                 done: 0,
-                total: wc_models::PARAKEET_V2_INT8.total_size(),
+                total: model.spec().total_size(),
                 error: None,
             }
         }
@@ -116,8 +118,9 @@ impl Step {
     }
 }
 
-/// Grants keyboard access via polkit (GUI password prompt):
+/// Linux: grants keyboard access via polkit (GUI password prompt):
 /// input-group membership for permanence + ACLs so it works immediately.
+#[cfg(target_os = "linux")]
 fn grant_keyboard_access() -> Result<(), String> {
     let user = std::env::var("USER").map_err(|_| "cannot determine username".to_string())?;
     let script = r#"set -e
@@ -138,6 +141,35 @@ if [ -e /dev/uinput ]; then setfacl -m "u:$1:rw" /dev/uinput 2>/dev/null || true
         );
     }
     Ok(())
+}
+
+/// macOS: register the app for Accessibility (shows the system prompt) and open
+/// the Input Monitoring + Microphone privacy panes. The user toggles WhisprCatch
+/// on in each; grants may need an app relaunch to take effect.
+#[cfg(target_os = "macos")]
+fn grant_keyboard_access() -> Result<(), String> {
+    let trusted = wc_hotkey::request_accessibility();
+    for pane in [
+        "com.apple.preference.security?Privacy_Accessibility",
+        "com.apple.preference.security?Privacy_ListenEvent",
+        "com.apple.preference.security?Privacy_Microphone",
+    ] {
+        let _ = std::process::Command::new("open")
+            .arg(format!("x-apple.systempreferences:{pane}"))
+            .status();
+    }
+    if trusted {
+        Ok(())
+    } else {
+        Err("Turn on WhisprCatch under Accessibility, Input Monitoring, and \
+             Microphone in the panels that opened, then reopen WhisprCatch."
+            .into())
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn grant_keyboard_access() -> Result<(), String> {
+    Err("keyboard access setup is not implemented on this platform".into())
 }
 
 // ---------------------------------------------------------------------------
@@ -423,12 +455,13 @@ impl eframe::App for Wizard {
             _ => {}
         }
         if advance_to_download {
-            self.step = Step::first_download();
+            self.step = Step::first_download(self.model);
         }
 
         let step_idx = self.step.index();
         let panel_fill = ctx.style().visuals.panel_fill;
         let mut next: Option<Step> = None;
+        let model = self.model;
 
         // pinned action area — buttons live at a stable position near the bottom
         egui::TopBottomPanel::bottom("wizard-actions")
@@ -444,7 +477,7 @@ impl eframe::App for Wizard {
                     Step::Welcome => {
                         if primary_button(ui, "Get started", egui::vec2(220.0, 40.0)).clicked() {
                             next = Some(if wc_hotkey::keyboard_accessible() {
-                                Step::first_download()
+                                Step::first_download(model)
                             } else {
                                 Step::Permission {
                                     granting: false,
@@ -533,9 +566,8 @@ impl eframe::App for Wizard {
                             ui.add_space(12.0);
                             step_body(ui, |ui| {
                                 ui.label(
-                                    "Push-to-talk dictation for your Linux desktop. \
-                                     Hold a key, speak, and your words are typed wherever \
-                                     your cursor is.",
+                                    "Push-to-talk dictation for your desktop. Hold a key, \
+                                     speak, and your words are typed wherever your cursor is.",
                                 );
                             });
                             ui.add_space(16.0);
@@ -555,12 +587,17 @@ impl eframe::App for Wizard {
                         Step::Permission { error, .. } => {
                             ui.label(egui::RichText::new("Keyboard access").size(26.0).strong());
                             ui.add_space(12.0);
+                            let perm_body = if cfg!(target_os = "macos") {
+                                "macOS needs your permission for WhisprCatch to see the \
+                                 hotkey and type for you — Accessibility, Input Monitoring, \
+                                 and Microphone. The button below opens those settings."
+                            } else {
+                                "To notice when you hold the dictation key, WhisprCatch \
+                                 needs permission to read your keyboard. You'll be asked \
+                                 for your password once."
+                            };
                             step_body(ui, |ui| {
-                                ui.label(
-                                    "To notice when you hold the dictation key, WhisprCatch \
-                                     needs permission to read your keyboard. You'll be asked \
-                                     for your password once.",
-                                );
+                                ui.label(perm_body);
                             });
                             if let Some(e) = error {
                                 ui.add_space(16.0);
@@ -581,7 +618,7 @@ impl eframe::App for Wizard {
                                 *rx = Some(r);
                                 let ctx2 = ui.ctx().clone();
                                 std::thread::spawn(move || {
-                                    let res = wc_models::PARAKEET_V2_INT8.ensure_with(
+                                    let res = model.spec().ensure_with(
                                         &wc_core::models_dir(),
                                         &|f, d, t| {
                                             let _ = tx.send(DlMsg::Progress {
@@ -601,12 +638,14 @@ impl eframe::App for Wizard {
                             }
                             ui.label(egui::RichText::new("Speech model").size(26.0).strong());
                             ui.add_space(12.0);
+                            let dl_line = format!(
+                                "Downloading {} — about {} MB, one time. Everything runs \
+                                 locally; audio never leaves this machine.",
+                                model.label(),
+                                model.download_mb(),
+                            );
                             step_body(ui, |ui| {
-                                ui.label(
-                                    "Downloading the on-device speech model — about 660 MB, \
-                                     one time. Everything runs locally; audio never leaves \
-                                     this machine.",
-                                );
+                                ui.label(dl_line);
                             });
                             ui.add_space(24.0);
                             let frac = if *total > 0 {
@@ -698,6 +737,8 @@ impl eframe::App for Wizard {
 }
 
 /// Small fatal-error window for desktop launches (no terminal to print to).
+/// macOS surfaces failures via a notification instead (GUI must be main-thread).
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 pub fn error_window(message: &str, theme_pref: &str) {
     let msg = message.to_string();
     let pref = theme_pref.to_string();
@@ -718,6 +759,7 @@ pub fn error_window(message: &str, theme_pref: &str) {
     );
 }
 
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 struct ErrorApp {
     msg: String,
 }

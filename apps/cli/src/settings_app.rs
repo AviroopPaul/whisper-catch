@@ -5,11 +5,13 @@
 //! 760px column, header with accent title + stat chips, tabs with an
 //! accent underline, history cards with hover affordance.
 
+use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use eframe::egui;
 use egui_phosphor::regular as icons;
+use wc_models::ModelId;
 
 use crate::{autostart, config, theme};
 use wc_core::history;
@@ -64,6 +66,22 @@ pub fn run() -> Result<()> {
     .map_err(|e| anyhow::anyhow!("settings window failed: {e}"))
 }
 
+/// Background model download driven from the Settings → Model card.
+struct ModelDl {
+    model: ModelId,
+    rx: Receiver<DlMsg>,
+    file: String,
+    done: u64,
+    total: u64,
+    error: Option<String>,
+}
+
+enum DlMsg {
+    Progress { file: String, done: u64, total: u64 },
+    Finished,
+    Failed(String),
+}
+
 struct App {
     tab: Tab,
     cfg: config::Config,
@@ -76,13 +94,13 @@ struct App {
     search: String,
     /// (entry timestamp, when copied) — drives the brief "Copied" flash.
     copied: Option<(u64, Instant)>,
+    /// In-flight model download, if any (Settings → Model).
+    dl: Option<ModelDl>,
 }
 
 impl App {
     fn new(cfg: config::Config) -> Self {
-        let autostart_on = dirs::config_dir()
-            .map(|d| d.join("autostart/whisper-catch.desktop").exists())
-            .unwrap_or(false);
+        let autostart_on = autostart::is_enabled();
         Self {
             tab: Tab::History,
             cfg,
@@ -94,6 +112,62 @@ impl App {
             confirm_clear: false,
             search: String::new(),
             copied: None,
+            dl: None,
+        }
+    }
+
+    /// The model currently selected in the config (defaults if unset/unknown).
+    fn selected_model(&self) -> ModelId {
+        ModelId::parse(&self.cfg.model)
+    }
+
+    /// Kick off a background download of `model` into the models dir.
+    fn start_download(&mut self, model: ModelId, ctx: &egui::Context) {
+        let (tx, rx) = mpsc::channel();
+        self.dl = Some(ModelDl {
+            model,
+            rx,
+            file: String::new(),
+            done: 0,
+            total: model.spec().total_size(),
+            error: None,
+        });
+        let ctx = ctx.clone();
+        std::thread::spawn(move || {
+            let res = model.spec().ensure_with(&wc_core::models_dir(), &|f, d, t| {
+                let _ = tx.send(DlMsg::Progress {
+                    file: f.to_string(),
+                    done: d,
+                    total: t,
+                });
+                ctx.request_repaint();
+            });
+            let _ = tx.send(match res {
+                Ok(_) => DlMsg::Finished,
+                Err(e) => DlMsg::Failed(format!("{e:#}")),
+            });
+            ctx.request_repaint();
+        });
+    }
+
+    /// Drains download progress messages; drops the job when it finishes.
+    fn poll_download(&mut self) {
+        let mut clear = false;
+        if let Some(dl) = self.dl.as_mut() {
+            while let Ok(msg) = dl.rx.try_recv() {
+                match msg {
+                    DlMsg::Progress { file, done, total } => {
+                        dl.file = file;
+                        dl.done = done;
+                        dl.total = total;
+                    }
+                    DlMsg::Finished => clear = true,
+                    DlMsg::Failed(e) => dl.error = Some(e),
+                }
+            }
+        }
+        if clear {
+            self.dl = None;
         }
     }
 
@@ -228,6 +302,10 @@ fn abs_time(ts: u64) -> String {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.poll_download();
+        if self.dl.is_some() {
+            ctx.request_repaint_after(Duration::from_millis(200));
+        }
         egui::TopBottomPanel::top("header")
             .frame(egui::Frame::side_top_panel(&ctx.style()).inner_margin(egui::Margin {
                 left: 24,
@@ -518,26 +596,11 @@ impl App {
                                 }
                             });
                         ui.end_row();
-
-                        setting_label(ui, icons::CPU, "Model");
-                        ui.label(
-                            egui::RichText::new(
-                                self.cfg
-                                    .model_dir
-                                    .clone()
-                                    .unwrap_or_else(|| {
-                                        wc_core::models_dir().join("parakeet-tdt-0.6b-v2-int8")
-                                    })
-                                    .display()
-                                    .to_string(),
-                            )
-                            .monospace()
-                            .weak()
-                            .small(),
-                        );
-                        ui.end_row();
                     });
             });
+            ui.add_space(12.0);
+
+            self.model_card(ui);
 
             ui.add_space(16.0);
             ui.horizontal(|ui| {
@@ -558,7 +621,7 @@ impl App {
                     }
                     if ok {
                         self.status =
-                            "Saved. Key changes apply after the daemon restarts.".into();
+                            "Saved. Model and key changes apply after the daemon restarts.".into();
                     }
                     self.saved_ok = ok;
                 }
@@ -583,6 +646,122 @@ impl App {
 
         if changed_theme {
             theme::apply(ui.ctx(), &self.cfg.theme);
+        }
+    }
+
+    /// Speech-model picker with download-on-demand and progress.
+    fn model_card(&mut self, ui: &mut egui::Ui) {
+        let selected = self.selected_model();
+        let complete = selected.spec().is_complete(&wc_core::models_dir());
+        let downloading = self.dl.as_ref().map(|d| d.model) == Some(selected);
+        let mut do_download: Option<ModelId> = None;
+
+        theme::card(ui).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            section_title(ui, icons::CPU, "Speech model");
+            ui.add_space(8.0);
+
+            egui::Grid::new("model")
+                .num_columns(2)
+                .spacing([24.0, 10.0])
+                .show(ui, |ui| {
+                    setting_label(ui, icons::WAVEFORM, "Model");
+                    let current = selected.label();
+                    egui::ComboBox::from_id_salt("model")
+                        .selected_text(current)
+                        .show_ui(ui, |ui| {
+                            for m in ModelId::ALL {
+                                ui.selectable_value(
+                                    &mut self.cfg.model,
+                                    m.slug().to_string(),
+                                    m.label(),
+                                );
+                            }
+                        });
+                    ui.end_row();
+                });
+
+            ui.add_space(6.0);
+            ui.label(egui::RichText::new(selected.blurb()).weak());
+            ui.add_space(2.0);
+            ui.label(
+                egui::RichText::new(format!(
+                    "{}  ·  {} MB download",
+                    selected.ram_hint(),
+                    selected.download_mb()
+                ))
+                .small()
+                .weak(),
+            );
+
+            ui.add_space(12.0);
+
+            if downloading {
+                let dl = self.dl.as_ref().unwrap();
+                let frac = if dl.total > 0 {
+                    dl.done as f32 / dl.total as f32
+                } else {
+                    0.0
+                };
+                ui.add(
+                    egui::ProgressBar::new(frac)
+                        .desired_height(10.0)
+                        .fill(theme::accent(ui))
+                        .animate(dl.error.is_none()),
+                );
+                ui.add_space(6.0);
+                if let Some(e) = &dl.error {
+                    ui.colored_label(ui.visuals().error_fg_color, e);
+                } else {
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "{:.0}%  ·  {:.0} / {:.0} MB — {}",
+                            frac * 100.0,
+                            dl.done as f64 / 1e6,
+                            dl.total as f64 / 1e6,
+                            if dl.file.is_empty() { "preparing…" } else { &dl.file }
+                        ))
+                        .small()
+                        .weak(),
+                    );
+                }
+            } else if complete {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(format!("{} Downloaded", icons::CHECK))
+                            .small()
+                            .color(theme::success(ui)),
+                    );
+                    ui.label(
+                        egui::RichText::new("· applies after the daemon restarts")
+                            .small()
+                            .weak(),
+                    );
+                });
+            } else {
+                ui.horizontal(|ui| {
+                    if ui
+                        .button(format!(
+                            "{}  Download ({} MB)",
+                            icons::DOWNLOAD_SIMPLE,
+                            selected.download_mb()
+                        ))
+                        .clicked()
+                    {
+                        do_download = Some(selected);
+                    }
+                    ui.label(
+                        egui::RichText::new("Not downloaded yet")
+                            .small()
+                            .weak(),
+                    );
+                });
+            }
+        });
+
+        if let Some(m) = do_download {
+            let ctx = ui.ctx().clone();
+            self.start_download(m, &ctx);
         }
     }
 

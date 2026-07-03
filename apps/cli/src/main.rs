@@ -20,14 +20,24 @@ use wc_hotkey::{PttEvent, PttKey};
 use wc_inject::Injector;
 
 #[derive(Parser)]
-#[command(name = "whisper-catch", about = "Local push-to-talk dictation")]
+#[command(name = "whisper-catch", version, about = "Local push-to-talk dictation")]
 struct Cli {
     /// Model directory (overrides config; defaults to <data-dir>/whisper-catch/models/parakeet-tdt-0.6b-v2-int8)
     #[arg(long, global = true)]
     model: Option<PathBuf>,
 
     #[command(subcommand)]
-    cmd: Cmd,
+    cmd: Option<Cmd>,
+}
+
+/// Launched with no subcommand (e.g. double-clicking the macOS app) → run the
+/// push-to-talk daemon with defaults.
+fn default_cmd() -> Cmd {
+    Cmd::Ptt {
+        key: None,
+        print_only: false,
+        no_tray: false,
+    }
 }
 
 #[derive(Subcommand)]
@@ -71,14 +81,16 @@ fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let cli = Cli::parse();
     let cfg = config::load()?;
+    let cmd = cli.cmd.unwrap_or_else(default_cmd);
 
     // subcommands that don't need the engine
-    match &cli.cmd {
+    match &cmd {
         Cmd::Settings => return settings_app::run(),
         Cmd::Overlay => return overlay::run(),
         Cmd::DownloadModel => {
-            let dir = wc_models::PARAKEET_V2_INT8.ensure(&wc_core::models_dir())?;
-            log::info!("model ready at {}", dir.display());
+            let model_id = wc_models::ModelId::parse(&cfg.model);
+            let dir = model_id.spec().ensure(&wc_core::models_dir())?;
+            log::info!("{} model ready at {}", model_id.slug(), dir.display());
             return Ok(());
         }
         Cmd::Autostart { enable, disable } => {
@@ -95,7 +107,7 @@ fn main() -> Result<()> {
 
     // Ptt is the desktop-launch entry point: single-instance guard and the
     // GUI setup wizard come before any console-style failure.
-    if let Cmd::Ptt { .. } = &cli.cmd {
+    if let Cmd::Ptt { .. } = &cmd {
         let _lock = match acquire_instance_lock() {
             Some(l) => l,
             None => {
@@ -105,9 +117,10 @@ fn main() -> Result<()> {
                 return settings_app::run();
             }
         };
-        if wizard::need_setup() && cli.model.is_none() && cfg.model_dir.is_none() {
+        let model_id = wc_models::ModelId::parse(&cfg.model);
+        if wizard::need_setup(model_id) && cli.model.is_none() && cfg.model_dir.is_none() {
             if gui_session() {
-                match wizard::run(&cfg.theme)? {
+                match wizard::run(&cfg.theme, model_id)? {
                     wizard::Outcome::Ready => {}
                     wizard::Outcome::Cancelled => return Ok(()),
                 }
@@ -122,19 +135,21 @@ fn main() -> Result<()> {
         std::mem::forget(_lock);
     }
 
+    let model_id = wc_models::ModelId::parse(&cfg.model);
     let model_dir = match cli.model.or_else(|| cfg.model_dir.clone()) {
         Some(dir) => dir, // explicit dir: user manages it, don't auto-download
-        None => wc_models::PARAKEET_V2_INT8
+        None => model_id
+            .spec()
             .ensure(&wc_core::models_dir())
-            .context("fetching default model")?,
+            .with_context(|| format!("fetching {} model", model_id.slug()))?,
     };
 
-    log::info!("loading model from {}", model_dir.display());
+    log::info!("loading {} model from {}", model_id.slug(), model_dir.display());
     let t0 = std::time::Instant::now();
-    let mut engine = Engine::load(&model_dir)?;
+    let mut engine = Engine::load(model_id, &model_dir)?;
     log::info!("model loaded in {:.1}s", t0.elapsed().as_secs_f32());
 
-    match cli.cmd {
+    match cmd {
         Cmd::Transcribe { wav } => {
             let samples = transcribe_rs::audio::read_wav_samples(&wav)
                 .map_err(|e| anyhow::anyhow!("{e}"))
@@ -161,14 +176,40 @@ fn main() -> Result<()> {
             no_tray,
         } => {
             let key = PttKey::parse(key.as_deref().unwrap_or(&cfg.key))?;
-            let res = run_ptt(engine, key, print_only, no_tray, &cfg);
-            if let Err(e) = &res {
-                if gui_session() {
-                    notify("WhisprCatch stopped", &format!("{e:#}"));
-                    wizard::error_window(&format!("{e:#}"), &cfg.theme);
-                }
+            let state = Arc::new(AppState::new());
+
+            #[cfg(target_os = "macos")]
+            if no_tray {
+                // Headless CLI use — run the loop on the main thread, no menu bar.
+                run_ptt(state, engine, key, print_only, true, &cfg)?;
+            } else {
+                // The macOS menu-bar tray must own the main thread, so the
+                // dictation loop runs on a worker while the tray blocks here.
+                let self_exe = std::env::current_exe().context("resolving own binary path")?;
+                let worker_state = state.clone();
+                let cfg2 = cfg.clone();
+                std::thread::spawn(move || {
+                    if let Err(e) = run_ptt(worker_state, engine, key, print_only, true, &cfg2) {
+                        log::error!("dictation loop stopped: {e:#}");
+                        if gui_session() {
+                            notify("WhisprCatch stopped", &format!("{e:#}"));
+                        }
+                    }
+                });
+                wc_tray::run_main(state, self_exe)?;
             }
-            res?;
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                let res = run_ptt(state, engine, key, print_only, no_tray, &cfg);
+                if let Err(e) = &res {
+                    if gui_session() {
+                        notify("WhisprCatch stopped", &format!("{e:#}"));
+                        wizard::error_window(&format!("{e:#}"), &cfg.theme);
+                    }
+                }
+                res?;
+            }
         }
         Cmd::Settings | Cmd::Overlay | Cmd::DownloadModel | Cmd::Autostart { .. } => {
             unreachable!()
@@ -281,13 +322,13 @@ fn join_delta(committed: usize, words: &[String]) -> String {
 }
 
 fn run_ptt(
+    state: Arc<AppState>,
     mut engine: Engine,
     key: PttKey,
     print_only: bool,
     no_tray: bool,
     cfg: &config::Config,
 ) -> Result<()> {
-    let state = Arc::new(AppState::new());
     let tray = if no_tray {
         None
     } else {
