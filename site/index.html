@@ -99,15 +99,15 @@
   .nav-dl:hover { background: var(--teal-soft); border-color: rgba(93, 232, 205, .5); }
 
   /* ================= hero ================= */
-  .hero { position: relative; padding: 108px 0 96px; }
+  .hero { position: relative; padding: 76px 0 88px; text-align: center; }
   .hero::before {
     content: ""; position: absolute; inset: 0 0 auto 0; height: 720px; pointer-events: none;
     background: radial-gradient(58% 46% at 68% 8%, rgba(93, 232, 205, .075), transparent 68%);
   }
   .hero .wrap { position: relative; }
   h1 {
-    font-size: clamp(48px, 8.4vw, 96px); font-weight: 700;
-    line-height: .99; letter-spacing: -.038em;
+    font-size: clamp(40px, 5.6vw, 68px); font-weight: 700;
+    line-height: 1.02; letter-spacing: -.036em;
   }
   h1 .typed { position: relative; }
   h1 .caret-block {
@@ -117,11 +117,20 @@
   }
   @keyframes blink { 50% { opacity: 0; } }
   .hero .sub {
-    margin-top: 26px; max-width: 470px;
-    color: var(--dim); font-size: 17.5px; line-height: 1.55;
+    margin: 18px auto 0; max-width: 560px;
+    color: var(--dim); font-size: 17px; line-height: 1.55;
   }
   .hero .sub b { color: var(--ink); font-weight: 500; }
-  .cta { margin-top: 36px; display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
+  .cta { margin-top: 32px; display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
+  .cta .wl { margin: 0; min-height: 0; display: flex; align-items: center; }
+  .cta .wl-trigger {
+    font: inherit; font-size: 15.5px; font-weight: 600; letter-spacing: -.01em; color: var(--ink);
+    border: 1px solid var(--line-strong); border-style: solid; border-radius: 10px;
+    padding: 14px 24px; background: rgba(255, 255, 255, .02); white-space: nowrap;
+  }
+  @media (max-width: 480px) { .cta .wl-trigger { font-size: 13.5px; padding: 14px 16px; } }
+  .cta .wl-trigger b { font-weight: 600; }
+  .cta .wl-err { position: absolute; margin-top: 96px; }
   .btn {
     display: inline-flex; align-items: center; gap: 10px;
     background: var(--teal); color: var(--teal-deep);
@@ -181,88 +190,27 @@
   .install .wl { display: flex; flex-direction: column; align-items: center; }
   .install .wl-err { text-align: center; }
 
-  /* ================= demo ================= */
-  .demo { position: relative; margin-top: 76px; }
-  .demo::before {
-    content: ""; position: absolute; inset: -60px 0; pointer-events: none;
-    background: radial-gradient(50% 55% at 50% 60%, rgba(93, 232, 205, .06), transparent 70%);
+  /* ================= hero video ================= */
+  .hero-video {
+    position: relative;
+    width: min(1560px, calc(100vw - 40px));
+    margin: 64px auto 0;
   }
-  .demo-window {
-    position: relative; max-width: 780px;
-    background: var(--panel);
-    border: 1px solid var(--line); border-top-color: var(--line-strong);
-    border-radius: 14px;
-    box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .65), 0 2px 8px rgba(0, 0, 0, .4);
+  .hero-video::before {
+    content: ""; position: absolute; inset: -60px -18px; pointer-events: none;
+    background: radial-gradient(48% 42% at 50% 52%, rgba(93, 232, 205, .11), transparent 70%);
   }
-  .demo-bar {
-    display: flex; align-items: center; gap: 7px;
-    padding: 13px 18px; border-bottom: 1px solid var(--line);
+  .hero-video video {
+    position: relative; display: block; width: 100%; aspect-ratio: 16 / 9;
+    border-radius: 16px; border: 1px solid var(--line-strong);
+    background: #0d1117;
+    box-shadow: 0 40px 120px -24px rgba(0, 0, 0, .8), 0 12px 36px rgba(0, 0, 0, .45);
   }
-  .demo-bar i { width: 10px; height: 10px; border-radius: 50%; background: rgba(233, 238, 247, .1); }
-  .demo-bar .fname { margin-left: 10px; font: 400 12px/1 var(--mono); color: var(--faint); }
-  .demo-bar .netchip {
-    margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
-    font: 400 11px/1 var(--mono); color: var(--dim);
-    border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px;
+  @media (max-width: 720px) {
+    .hero-video { margin-top: 40px; width: calc(100vw - 24px); }
+    .hero-video::before { inset: -40px 0; }
+    .hero-video video { border-radius: 10px; }
   }
-  .demo-bar .netchip::before {
-    content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--teal);
-  }
-  @media (max-width: 560px) { .demo-bar .fname { display: none; } .demo-bar .netchip { white-space: nowrap; } }
-  .demo-field {
-    height: 168px; padding: 22px 26px; overflow: hidden;
-    font-size: 17px; line-height: 1.75; color: var(--ink);
-  }
-  .demo-field .ghost { color: var(--faint); }
-  .demo-field .w { display: inline-block; animation: wordin .22s ease both; }
-  @keyframes wordin { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
-  .caret {
-    display: inline-block; width: 2px; height: 1.1em; background: var(--teal);
-    vertical-align: text-bottom; margin-left: 1px;
-    animation: blink 1.1s steps(1) infinite;
-  }
-
-  /* the overlay pill — faithful to the real one */
-  .pill {
-    position: absolute; left: 50%; bottom: -21px; z-index: 2;
-    transform: translate(-50%, 8px);
-    display: inline-flex; align-items: center; gap: 11px;
-    background: #0c0f14;
-    border: 1px solid rgba(93, 232, 205, .26); border-radius: 999px;
-    padding: 11px 20px;
-    color: var(--ink); font-size: 13.5px; font-weight: 500; white-space: nowrap;
-    box-shadow: 0 12px 40px -6px rgba(0, 0, 0, .7);
-    opacity: 0; pointer-events: none;
-    transition: opacity .22s ease, transform .22s ease;
-  }
-  .pill.show { opacity: 1; transform: translate(-50%, 0); }
-  .pill .dot {
-    width: 9px; height: 9px; border-radius: 50%; background: var(--red); flex: none;
-    animation: pulse 1.05s ease-in-out infinite;
-  }
-  @keyframes pulse { 0%, 100% { transform: scale(.8); opacity: .6; } 50% { transform: scale(1.1); opacity: 1; } }
-  .pill .bars { display: flex; align-items: center; gap: 3px; height: 16px; }
-  .pill .bars i {
-    width: 3px; height: 16px; border-radius: 2px; background: var(--teal);
-    transform: scaleY(.3); transform-origin: center;
-    animation: level .8s ease-in-out infinite;
-  }
-  .pill .bars i:nth-child(2) { animation-delay: .14s; }
-  .pill .bars i:nth-child(3) { animation-delay: .28s; }
-  .pill .bars i:nth-child(4) { animation-delay: .42s; }
-  .pill .bars i:nth-child(5) { animation-delay: .56s; }
-  @keyframes level { 0%, 100% { transform: scaleY(.28); opacity: .7; } 50% { transform: scaleY(1); opacity: 1; } }
-  .pill.busy .dot { background: var(--teal); animation: none; }
-  .pill.busy .bars i { animation-play-state: paused; opacity: .35; }
-
-  .demo-dock {
-    max-width: 780px; margin-top: 42px;
-    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-  }
-  .dock-left { display: flex; align-items: center; gap: 12px; }
-  .dock-label { font: 400 13px/1 var(--mono); color: var(--dim); min-width: 120px; }
-  .dock-meta { font: 400 12.5px/1 var(--mono); color: var(--teal); opacity: 0; transition: opacity .35s ease; }
-  .dock-meta.show { opacity: 1; }
 
   /* ================= sections ================= */
   section { padding: 130px 0; }
@@ -404,8 +352,8 @@
   <!-- ================= hero ================= -->
   <section class="hero">
     <div class="wrap">
-      <h1 class="rise">You <em class="voice">talk.</em><br>It <span class="typed">types</span>.<span class="caret-block" aria-hidden="true"></span></h1>
-      <p class="sub rise d1">Hold a key, speak, let go — punctuated text lands at your cursor, in any app. <b>Entirely on your machine.</b></p>
+      <h1 class="rise">You <em class="voice">talk.</em> It <span class="typed">types</span>.<span class="caret-block" aria-hidden="true"></span></h1>
+      <p class="sub rise d1">Push-to-talk dictation for Linux — punctuated text lands at your cursor, in any app. <b>Entirely on your machine.</b></p>
       <div class="cta rise d2">
         <a class="btn" href="https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_amd64.deb">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -413,10 +361,7 @@
           </svg>
           Download for Linux
         </a>
-        <a class="link-gh" href="https://github.com/AviroopPaul/whisper-catch">View on GitHub</a>
-      </div>
-      <p class="hero-note rise d3">free &amp; open source · no cloud, no account · linux today</p>
-      <div class="wl rise d3" data-wl>
+        <div class="wl" data-wl>
         <button class="wl-trigger" type="button">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.954 4.45z"/>
@@ -433,32 +378,17 @@
         </p>
         <p class="wl-err" role="alert"></p>
       </div>
-
-      <!-- dictation demo -->
-      <div class="demo rise d4" id="demo">
-        <div class="demo-window" role="img" aria-label="Demo: while the push-to-talk key is held, a small pill listens and words stream in live; on release the finished, punctuated sentence sits at the cursor.">
-          <div class="demo-bar" aria-hidden="true">
-            <i></i><i></i><i></i>
-            <span class="fname">anywhere you can type</span>
-            <span class="netchip">0 network calls</span>
-          </div>
-          <div class="demo-field" aria-hidden="true">
-            <span id="d-text"><span class="ghost">Cursor here. Hold the key and talk.</span></span><span class="caret" id="d-caret"></span>
-          </div>
-          <div class="pill" id="d-pill" aria-hidden="true">
-            <span class="dot"></span>
-            <span id="d-pill-label">Listening</span>
-            <span class="bars"><i></i><i></i><i></i><i></i><i></i></span>
-          </div>
-        </div>
-        <div class="demo-dock" aria-hidden="true">
-          <div class="dock-left">
-            <kbd id="d-key">Right&nbsp;Alt</kbd>
-            <span class="dock-label" id="d-label">hold to talk</span>
-          </div>
-          <span class="dock-meta" id="d-meta"></span>
-        </div>
       </div>
+      <p class="hero-note rise d3">free &amp; open source · no cloud, no account · linux today</p>
+    </div>
+
+    <!-- hero demo video -->
+    <div class="hero-video rise d4">
+      <video id="hero-demo" autoplay muted loop playsinline preload="auto"
+             poster="assets/hero-demo-poster.jpg"
+             aria-label="Demo: on a Linux desktop with Slack open, the push-to-talk key is held, a small pill listens while words stream in live, and on release the punctuated message is typed and sent — 0.22 seconds of on-CPU inference, zero network calls.">
+        <source src="assets/hero-demo.mp4" type="video/mp4">
+      </video>
     </div>
   </section>
 
@@ -640,115 +570,13 @@
     });
   });
 
-  /* ---------- dictation demo ---------- */
-  var textEl  = document.getElementById("d-text");
-  var pillEl  = document.getElementById("d-pill");
-  var pillLbl = document.getElementById("d-pill-label");
-  var keyEl   = document.getElementById("d-key");
-  var labelEl = document.getElementById("d-label");
-  var metaEl  = document.getElementById("d-meta");
-  if (!textEl || !pillEl) return;
-
-  var takes = [
-    { text: "Push the fix, tag the release — I'll write the changelog after standup.",
-      audio: "5.2s", infer: "0.21s" },
-    { text: "Remind me to renew the domain on Friday, and add oat milk to the list.",
-      audio: "4.9s", infer: "0.19s" },
-    { text: "Ask not what your country can do for you — ask what you can do for your country.",
-      audio: "6.8s", infer: "0.26s" }
-  ];
-
-  function metaFor(t) { return t.audio + " speech → " + t.infer + " on-CPU"; }
-
-  if (reduced) {
-    textEl.textContent = takes[0].text;
-    metaEl.textContent = metaFor(takes[0]);
-    metaEl.classList.add("show");
-    return;
+  /* ---------- hero video: respect reduced motion ---------- */
+  var vid = document.getElementById("hero-demo");
+  if (vid && reduced) {
+    vid.removeAttribute("autoplay");
+    vid.setAttribute("controls", "");
+    vid.pause();
   }
-
-  var idx = 0;
-  var timers = [];
-  function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
-
-  function addWord(word, isLast) {
-    var s = document.createElement("span");
-    s.className = "w";
-    s.textContent = word;
-    textEl.appendChild(s);
-    if (!isLast) textEl.appendChild(document.createTextNode(" "));
-  }
-
-  function run() {
-    var take = takes[idx];
-    idx = (idx + 1) % takes.length;
-    var words = take.text.split(" ");
-    var streamN = Math.ceil(words.length * 0.62); // words that stream while holding
-
-    // 0 — reset
-    textEl.innerHTML = "<span class=\"ghost\">Cursor here. Hold the key and talk.</span>";
-    metaEl.classList.remove("show");
-    pillEl.classList.remove("show", "busy");
-    pillLbl.textContent = "Listening";
-    keyEl.classList.remove("pressed");
-    labelEl.textContent = "hold to talk";
-
-    // 1 — key down, pill up
-    later(function () {
-      keyEl.classList.add("pressed");
-      pillEl.classList.add("show");
-      labelEl.textContent = "listening…";
-      textEl.textContent = "";
-
-      // 2 — words stream in live while the key is held
-      var i = 0;
-      (function stream() {
-        if (i < streamN) {
-          addWord(words[i], false);
-          i += 1;
-          timers.push(setTimeout(stream, 150 + Math.random() * 150));
-        } else {
-          // 3 — key released; brief transcribe beat
-          later(function () {
-            keyEl.classList.remove("pressed");
-            pillEl.classList.add("busy");
-            pillLbl.textContent = "Transcribing…";
-            labelEl.textContent = "transcribing…";
-          }, 320);
-
-          // 4 — the rest lands at once
-          later(function () {
-            pillEl.classList.remove("show");
-            var j = streamN;
-            (function flush() {
-              if (j < words.length) {
-                addWord(words[j], j === words.length - 1);
-                j += 1;
-                timers.push(setTimeout(flush, 34));
-              } else {
-                metaEl.textContent = metaFor(take);
-                metaEl.classList.add("show");
-                labelEl.textContent = "typed at your cursor";
-                later(run, 4400); // 5 — hold the frame, loop
-              }
-            })();
-          }, 720);
-        }
-      })();
-    }, 1000);
-  }
-
-  // pause when hidden so the loop never desyncs
-  document.addEventListener("visibilitychange", function () {
-    if (document.hidden) {
-      timers.forEach(clearTimeout);
-      timers = [];
-    } else if (timers.length === 0) {
-      run();
-    }
-  });
-
-  run();
 })();
 </script>
 
