@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     /// PTT key: rctrl, lctrl, ralt, lalt, super, f13, scrolllock
     pub key: String,
-    /// Model directory override; defaults to <data-dir>/whisper-catch/models/<default model>
+    /// Speech model: "parakeet" (accurate) or "moonshine" (light, low RAM)
+    pub model: String,
+    /// Model directory override; defaults to <data-dir>/whisper-catch/models/<model>
     pub model_dir: Option<PathBuf>,
     /// Keep a local log of transcriptions (history.jsonl)
     pub history: bool,
@@ -23,7 +25,12 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            key: "ralt".into(),
+            // Right Alt is a low-conflict PTT key on Linux; on macOS Right Alt
+            // is a dead key for accents, so default to Right Command there.
+            key: if cfg!(target_os = "macos") { "rcmd" } else { "ralt" }.into(),
+            // macOS floor device is an 8 GB M1 Air — default to the light model;
+            // Linux defaults to the more accurate Parakeet.
+            model: if cfg!(target_os = "macos") { "moonshine" } else { "parakeet" }.into(),
             model_dir: None,
             history: true,
             theme: "system".into(),
