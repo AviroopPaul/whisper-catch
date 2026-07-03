@@ -222,6 +222,16 @@
   .hero-note { margin-top: 20px; font: 400 12.5px/1.6 var(--mono); color: var(--faint); }
   .hero-note b { color: var(--dim); font-weight: 400; }
 
+
+  /* ---------- analytics: download clicks ---------- */
+  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  document.querySelectorAll('a[href$=".deb"]').forEach(function (a) {
+    var where = a.closest("header") ? "header" : a.closest(".hero") ? "hero" : a.closest("#install") ? "install" : "page";
+    a.addEventListener("click", function () {
+      va("event", { name: "download_deb", data: { location: where } });
+    });
+  });
+
   /* ---------- macOS waitlist ---------- */
   .wl { margin-top: 22px; min-height: 44px; }
   .wl-trigger {
@@ -582,6 +592,7 @@
       }).then(function (r) {
         if (!r.ok) throw new Error(String(r.status));
         wl.classList.add("done");
+        va("event", { name: "waitlist_join" });
       }).catch(function () {
         wl.classList.add("error");
         err.textContent = "something broke — try again in a minute";
