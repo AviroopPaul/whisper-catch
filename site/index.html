@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>whisper-catch — local push-to-talk dictation</title>
+<meta name="description" content="Hold a key, speak, release — punctuated text appears at your cursor. 100% on-device speech-to-text for Linux.">
+<style>
+  :root {
+    --bg: #0b0e14; --bg2: #11151f; --card: #151a26; --border: #232a3a;
+    --text: #e6e9f0; --muted: #8b93a7; --accent: #5eead4; --accent2: #38bdf8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+  header { padding: 28px 0; display: flex; justify-content: space-between; align-items: center; }
+  .logo { font-weight: 700; font-size: 18px; letter-spacing: -.02em; }
+  .logo span { color: var(--accent); }
+  nav a { color: var(--muted); text-decoration: none; margin-left: 24px; font-size: 14px; }
+  nav a:hover { color: var(--text); }
+
+  .hero { text-align: center; padding: 72px 0 40px; }
+  .hero h1 {
+    font-size: clamp(34px, 6vw, 58px); line-height: 1.1; letter-spacing: -.03em; font-weight: 800;
+  }
+  .hero h1 em {
+    font-style: normal;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p.sub { color: var(--muted); font-size: 19px; max-width: 560px; margin: 20px auto 0; }
+  .keys { margin: 28px 0 8px; color: var(--muted); font-size: 15px; }
+  kbd {
+    background: var(--card); border: 1px solid var(--border); border-bottom-width: 3px;
+    border-radius: 6px; padding: 3px 10px; font: 600 13px ui-monospace, monospace; color: var(--text);
+  }
+  .cta { margin-top: 32px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 13px 26px; border-radius: 10px; text-decoration: none;
+    font-weight: 600; font-size: 15px; transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn-primary {
+    background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #06251f;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 30px rgba(94,234,212,.25); }
+  .btn-ghost { border: 1px solid var(--border); color: var(--text); }
+  .btn-ghost:hover { border-color: var(--muted); }
+  .cta-note { color: var(--muted); font-size: 13px; margin-top: 12px; }
+
+  .demo {
+    margin: 56px auto 0; max-width: 640px; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; text-align: left;
+  }
+  .demo-bar { display: flex; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .demo-bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--border); }
+  .demo pre {
+    padding: 18px 20px; font: 14px/1.7 ui-monospace, "Cascadia Code", monospace;
+    color: var(--muted); overflow-x: auto;
+  }
+  .demo .g { color: var(--accent); }
+  .demo .w { color: var(--text); }
+
+  section.features { padding: 72px 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px;
+  }
+  .card h3 { font-size: 16px; margin-bottom: 8px; }
+  .card h3::before { content: "▸ "; color: var(--accent); }
+  .card p { color: var(--muted); font-size: 14.5px; }
+
+  section.install { padding: 0 0 72px; }
+  section.install h2, section.features h2 { font-size: 26px; letter-spacing: -.02em; margin-bottom: 20px; }
+  .code {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; font: 14px/1.8 ui-monospace, monospace; overflow-x: auto; color: var(--text);
+  }
+  .code .c { color: var(--muted); }
+  .code .p { color: var(--accent); user-select: none; }
+
+  footer {
+    border-top: 1px solid var(--border); padding: 28px 0; color: var(--muted); font-size: 14px;
+    display: flex; justify-content: space-between; flex-wrap: gap; gap: 12px;
+  }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">whisper-<span>catch</span></div>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/AviroopPaul/whisper-catch">GitHub</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <h1>Speak. Release.<br><em>Text appears.</em></h1>
+    <p class="sub">Push-to-talk dictation that runs entirely on your machine.
+       No cloud, no subscription, no audio leaving your laptop.</p>
+    <div class="keys">hold <kbd>Right Alt</kbd> → speak → release</div>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_0.1.0-1_amd64.deb">Download .deb</a>
+      <a class="btn btn-ghost" href="https://github.com/AviroopPaul/whisper-catch">Build from source</a>
+    </div>
+    <div class="cta-note">Linux (Ubuntu/Debian, x86-64) · macOS coming soon · MIT licensed</div>
+
+    <div class="demo">
+      <div class="demo-bar"><i></i><i></i><i></i></div>
+      <pre><span class="p">$</span> whisper-catch ptt
+<span class="g">ready</span> — hold RightAlt and speak, release to type.
+<span class="c">recording...</span>
+<span class="c">8.2s audio → 0.31s inference</span>
+<span class="w">And so, my fellow Americans, ask not what your country
+can do for you, ask what you can do for your country.</span></pre>
+    </div>
+  </section>
+
+  <section class="features" id="features">
+    <h2>Why whisper-catch</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>100% on-device</h3>
+        <p>NVIDIA Parakeet 0.6B running locally via ONNX Runtime. Beats Whisper large-v3 on English accuracy — with zero network calls.</p>
+      </div>
+      <div class="card">
+        <h3>Punctuation that just works</h3>
+        <p>Native capitalization and punctuation from the model. No lowercase word soup to clean up afterwards.</p>
+      </div>
+      <div class="card">
+        <h3>Fast on CPU</h3>
+        <p>~25× realtime on a modern laptop CPU. A ten-second sentence lands in about 400 ms. No GPU required.</p>
+      </div>
+      <div class="card">
+        <h3>Types anywhere</h3>
+        <p>Editors, browsers, chat apps, terminals — text is injected at your cursor in whatever has focus.</p>
+      </div>
+      <div class="card">
+        <h3>Tray-native</h3>
+        <p>Lives in your top bar. Toggle listening, watch session stats, open history &amp; settings — one click away.</p>
+      </div>
+      <div class="card">
+        <h3>Your data stays yours</h3>
+        <p>Optional local transcription history you can browse, copy from, and wipe. It's a file on your disk, nothing more.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="install" id="install">
+    <h2>Install</h2>
+    <div class="code">
+<span class="c"># Ubuntu / Debian</span>
+<span class="p">$</span> sudo apt install ./whisper-catch_0.1.0-1_amd64.deb
+<span class="p">$</span> whisper-catch ptt   <span class="c"># first run downloads the model (~660 MB, verified)</span>
+<br>
+<span class="c"># or from source</span>
+<span class="p">$</span> git clone https://github.com/AviroopPaul/whisper-catch &amp;&amp; cd whisper-catch
+<span class="p">$</span> cargo build --release -p whisper-catch
+    </div>
+  </section>
+
+  <footer>
+    <div>MIT © 2026 Aviroop Paul</div>
+    <div><a href="https://github.com/AviroopPaul/whisper-catch">github.com/AviroopPaul/whisper-catch</a></div>
+  </footer>
+</div>
+</body>
+</html>

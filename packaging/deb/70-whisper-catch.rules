@@ -1,0 +1,2 @@
+# uinput virtual keyboard for whisper-catch text injection (Wayland path)
+KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"

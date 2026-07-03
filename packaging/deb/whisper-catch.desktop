@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=whisper-catch
+Comment=Local push-to-talk dictation
+Exec=whisper-catch ptt
+Icon=audio-input-microphone
+Terminal=false
+Categories=Utility;Accessibility;
+Keywords=dictation;speech;voice;transcription;

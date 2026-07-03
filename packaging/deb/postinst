@@ -1,0 +1,20 @@
+#!/bin/sh
+set -e
+
+# uinput access for the (future) Wayland virtual-keyboard injection path
+if command -v udevadm >/dev/null 2>&1; then
+    udevadm control --reload-rules || true
+    udevadm trigger --name-match=uinput || true
+fi
+
+# evdev hotkey needs read access to /dev/input — grant to the installing user
+if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    if ! id -nG "$SUDO_USER" | tr ' ' '\n' | grep -qx input; then
+        usermod -aG input "$SUDO_USER" || true
+        echo "whisper-catch: added $SUDO_USER to the 'input' group — log out and back in for the hotkey to work."
+    fi
+else
+    echo "whisper-catch: run 'sudo usermod -aG input \$USER' and re-login for the hotkey to work."
+fi
+
+#DEBHELPER#
