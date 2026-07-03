@@ -221,14 +221,24 @@ const STREAM_GUARD_WORDS: usize = 2;
 struct OverlayProc(std::process::Child);
 
 impl OverlayProc {
-    fn spawn() -> Option<Self> {
-        let exe = std::env::current_exe().ok()?;
-        std::process::Command::new(exe)
+    /// `exe` is resolved once at daemon startup: after a package upgrade
+    /// replaces the binary, current_exe() of the running daemon points at
+    /// "… (deleted)" and every spawn would fail.
+    fn spawn(exe: &std::path::Path) -> Option<Self> {
+        match std::process::Command::new(exe)
             .arg("overlay")
             .stdin(std::process::Stdio::piped())
             .spawn()
-            .ok()
-            .map(Self)
+        {
+            Ok(child) => {
+                log::info!("overlay spawned (pid {})", child.id());
+                Some(Self(child))
+            }
+            Err(e) => {
+                log::warn!("overlay spawn failed: {e}");
+                None
+            }
+        }
     }
 
     fn transcribing(&mut self) {
@@ -295,6 +305,9 @@ fn run_ptt(
         }
     };
 
+    // resolve before any upgrade can replace the binary under us
+    let self_exe = std::env::current_exe().context("resolving own binary path")?;
+
     let events = wc_hotkey::listen(key)?;
     let mut injector = if print_only {
         None
@@ -322,8 +335,21 @@ fn run_ptt(
     let mut modifier_lifted = false;
     let mut last_pass = std::time::Instant::now();
 
+    // test hooks: SIGUSR1 = simulated press, SIGUSR2 = simulated release
+    let sig_press = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let sig_release = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let _ = signal_hook::flag::register(signal_hook::consts::SIGUSR1, sig_press.clone());
+    let _ = signal_hook::flag::register(signal_hook::consts::SIGUSR2, sig_release.clone());
+
     loop {
-        match events.recv_timeout(Duration::from_millis(120)) {
+        let ev = if sig_press.swap(false, Ordering::Relaxed) {
+            Ok(PttEvent::Pressed)
+        } else if sig_release.swap(false, Ordering::Relaxed) {
+            Ok(PttEvent::Released)
+        } else {
+            events.recv_timeout(Duration::from_millis(120))
+        };
+        match ev {
             Ok(PttEvent::Pressed) => {
                 if !state.is_enabled() || armed {
                     continue;
@@ -347,7 +373,7 @@ fn run_ptt(
                 log::info!("recording...");
                 state.recording.store(true, Ordering::Relaxed);
                 if cfg.overlay {
-                    overlay_proc = OverlayProc::spawn();
+                    overlay_proc = OverlayProc::spawn(&self_exe);
                 }
                 refresh(&tray);
             }

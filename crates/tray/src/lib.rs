@@ -15,6 +15,9 @@ mod linux {
 
     pub struct WcTray {
         state: Arc<AppState>,
+        /// Own binary path, resolved at startup — current_exe() goes stale
+        /// ("… (deleted)") once a package upgrade replaces the binary.
+        exe: std::path::PathBuf,
     }
 
     impl ksni::Tray for WcTray {
@@ -73,12 +76,11 @@ mod linux {
                 StandardItem {
                     label: "History & Settings…".into(),
                     icon_name: "preferences-system".into(),
-                    activate: Box::new(|_| {
-                        if let Ok(exe) = std::env::current_exe() {
-                            if let Err(e) = std::process::Command::new(exe).arg("settings").spawn()
-                            {
-                                log::error!("failed to open settings: {e}");
-                            }
+                    activate: Box::new(|this: &mut Self| {
+                        if let Err(e) =
+                            std::process::Command::new(&this.exe).arg("settings").spawn()
+                        {
+                            log::error!("failed to open settings: {e}");
                         }
                     }),
                     ..Default::default()
@@ -98,7 +100,8 @@ mod linux {
     /// Spawns the tray. Returns a handle used to refresh icon/menu after
     /// state changes. Fails gracefully when no StatusNotifierWatcher exists.
     pub fn spawn(state: Arc<AppState>) -> Result<TrayHandle> {
-        let handle = WcTray { state }
+        let exe = std::env::current_exe().unwrap_or_else(|_| "whisper-catch".into());
+        let handle = WcTray { state, exe }
             .spawn()
             .map_err(|e| anyhow::anyhow!("tray unavailable: {e}"))?;
         Ok(TrayHandle(handle))
