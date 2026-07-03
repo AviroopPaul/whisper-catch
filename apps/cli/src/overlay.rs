@@ -27,7 +27,12 @@ pub fn run() -> anyhow::Result<()> {
             .with_transparent(true)
             .with_window_level(egui::WindowLevel::AlwaysOnTop)
             .with_taskbar(false)
-            .with_resizable(false),
+            .with_resizable(false)
+            // never take focus: keystrokes must keep flowing to the app the
+            // user is dictating into (focus steal = streamed text lost)
+            .with_active(false)
+            .with_mouse_passthrough(true)
+            .with_window_type(egui::X11WindowType::Notification),
         ..Default::default()
     };
     let st = state.clone();
