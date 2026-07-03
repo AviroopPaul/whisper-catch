@@ -1,11 +1,22 @@
 //! Settings & history window (eframe/egui), launched as
 //! `whisper-catch settings` — from the tray menu or the shell.
+//!
+//! Layout per docs/DESIGN.md §5: opens maximized, content in a centered
+//! 760px column, header with accent title + stat chips, tabs with an
+//! accent underline, history cards with hover affordance.
+
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use eframe::egui;
+use egui_phosphor::regular as icons;
 
 use crate::{autostart, config, theme};
 use wc_core::history;
+
+const MAX_COL_WIDTH: f32 = 760.0;
+const GITHUB_URL: &str = "https://github.com/AviroopPaul/whisper-catch";
+const SITE_URL: &str = "https://whisper-catch.vercel.app";
 
 const KEYS: &[(&str, &str)] = &[
     ("ralt", "Right Alt"),
@@ -23,10 +34,11 @@ const THEMES: &[(&str, &str)] = &[
     ("dark", "Dark"),
 ];
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 enum Tab {
     History,
     Settings,
+    About,
 }
 
 pub fn run() -> Result<()> {
@@ -34,7 +46,8 @@ pub fn run() -> Result<()> {
     let pref = cfg.theme.clone();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([560.0, 660.0])
+            .with_maximized(true)
+            .with_inner_size([1080.0, 720.0])
             .with_min_inner_size([440.0, 420.0]),
         centered: true,
         ..Default::default()
@@ -44,6 +57,7 @@ pub fn run() -> Result<()> {
         options,
         Box::new(move |cc| {
             theme::apply(&cc.egui_ctx, &pref);
+            theme::install_icons(&cc.egui_ctx);
             Ok(Box::new(App::new(cfg)) as Box<dyn eframe::App>)
         }),
     )
@@ -57,8 +71,11 @@ struct App {
     entries: Vec<history::Entry>,
     totals: (u64, u64, f32),
     status: String,
+    saved_ok: bool,
     confirm_clear: bool,
     search: String,
+    /// (entry timestamp, when copied) — drives the brief "Copied" flash.
+    copied: Option<(u64, Instant)>,
 }
 
 impl App {
@@ -73,8 +90,10 @@ impl App {
             entries: history::load(500).unwrap_or_default(),
             totals: history::totals(),
             status: String::new(),
+            saved_ok: false,
             confirm_clear: false,
             search: String::new(),
+            copied: None,
         }
     }
 
@@ -84,75 +103,239 @@ impl App {
     }
 }
 
+/// Constrains content to a centered column so cards don't stretch to 1920px.
+///
+/// NOTE: must not go through `ui.horizontal(...)` — a horizontal row child Ui
+/// only gets `interact_size.y` of height, so any `ScrollArea` inside collapses
+/// to its 64px `min_scrolled_height`. Carve the column out of the full
+/// available rect instead so children keep the panel's full height.
+fn centered_col<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let full = ui.available_width();
+    let w = full.min(MAX_COL_WIDTH);
+    let pad = ((full - w) / 2.0).max(0.0);
+    let mut rect = ui.available_rect_before_wrap();
+    rect.min.x += pad;
+    rect.max.x = rect.min.x + w;
+    ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+        ui.set_width(w);
+        add(ui)
+    })
+    .inner
+}
+
+/// Small accent-subtle pill: strong value + weak small label.
+fn stat_chip(ui: &mut egui::Ui, value: &str, label: &str) {
+    egui::Frame::default()
+        .fill(theme::accent_subtle(ui))
+        .corner_radius(egui::CornerRadius::same(14))
+        .inner_margin(egui::Margin::symmetric(12, 5))
+        .show(ui, |ui| {
+            ui.spacing_mut().item_spacing.x = 5.0;
+            ui.label(egui::RichText::new(value).strong());
+            ui.label(egui::RichText::new(label).small().weak());
+        });
+}
+
+/// Tab label; selected = accent text + 2px accent underline.
+fn tab_button(ui: &mut egui::Ui, selected: bool, icon: &str, label: &str) -> bool {
+    let a = theme::accent(ui);
+    let text = format!("{icon}  {label}");
+    let rich = if selected {
+        egui::RichText::new(text).color(a).strong()
+    } else {
+        egui::RichText::new(text)
+    };
+    let resp = ui
+        .add(egui::Label::new(rich).sense(egui::Sense::click()))
+        .on_hover_cursor(egui::CursorIcon::PointingHand);
+    if selected {
+        ui.painter().hline(
+            resp.rect.x_range(),
+            resp.rect.bottom() + 6.0,
+            egui::Stroke::new(2.0, a),
+        );
+    }
+    resp.clicked()
+}
+
+/// Section header inside a card: accent icon + 17/strong title.
+fn section_title(ui: &mut egui::Ui, icon: &str, title: &str) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        ui.label(egui::RichText::new(icon).size(17.0).color(theme::accent(ui)));
+        ui.label(egui::RichText::new(title).size(17.0).strong());
+    });
+}
+
+/// Grid row label with a quiet leading icon.
+fn setting_label(ui: &mut egui::Ui, icon: &str, text: &str) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        ui.label(egui::RichText::new(icon).weak());
+        ui.label(text);
+    });
+}
+
+/// Big glyph on a 96px accent-subtle plate + two lines — empty states, About.
+fn glyph_plate(ui: &mut egui::Ui, icon: &str, size: f32) {
+    let a = theme::accent(ui);
+    let subtle = theme::accent_subtle(ui);
+    let ring = theme::border(ui);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(96.0, 96.0), egui::Sense::hover());
+    let p = ui.painter();
+    p.circle_filled(rect.center(), 48.0, subtle);
+    p.circle_stroke(rect.center(), 48.0, egui::Stroke::new(1.0, ring));
+    p.text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        icon,
+        egui::FontId::proportional(size),
+        a,
+    );
+}
+
+fn rel_time(ts: u64) -> String {
+    let now = chrono::Utc::now().timestamp();
+    let d = (now - ts as i64).max(0);
+    if d < 60 {
+        "just now".into()
+    } else if d < 3_600 {
+        format!("{}m ago", d / 60)
+    } else if d < 86_400 {
+        format!("{}h ago", d / 3_600)
+    } else if d < 7 * 86_400 {
+        format!("{}d ago", d / 86_400)
+    } else {
+        chrono::DateTime::from_timestamp(ts as i64, 0)
+            .map(|t| {
+                t.with_timezone(&chrono::Local)
+                    .format("%b %d, %Y")
+                    .to_string()
+            })
+            .unwrap_or_default()
+    }
+}
+
+fn abs_time(ts: u64) -> String {
+    chrono::DateTime::from_timestamp(ts as i64, 0)
+        .map(|t| {
+            t.with_timezone(&chrono::Local)
+                .format("%b %d · %H:%M")
+                .to_string()
+        })
+        .unwrap_or_default()
+}
+
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("header")
-            .frame(egui::Frame::side_top_panel(&ctx.style()).inner_margin(12.0))
+            .frame(egui::Frame::side_top_panel(&ctx.style()).inner_margin(egui::Margin {
+                left: 24,
+                right: 24,
+                top: 16,
+                bottom: 0,
+            }))
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("WhisprCatch")
-                            .heading()
-                            .color(theme::accent(ui)),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let (n, w, s) = self.totals;
+                centered_col(ui, |ui| {
+                    ui.horizontal(|ui| {
                         ui.label(
-                            egui::RichText::new(format!(
-                                "{w} words · {n} utterances · {:.0} min spoken",
-                                s / 60.0
-                            ))
-                            .weak()
-                            .small(),
+                            egui::RichText::new("WhisprCatch")
+                                .heading()
+                                .color(theme::accent(ui)),
                         );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.available_width() > 380.0 {
+                                let (n, w, s) = self.totals;
+                                stat_chip(ui, &format!("{:.0}", s / 60.0), "min spoken");
+                                stat_chip(ui, &n.to_string(), "utterances");
+                                stat_chip(ui, &w.to_string(), "words");
+                            }
+                        });
                     });
-                });
-                ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    ui.selectable_value(&mut self.tab, Tab::History, "History");
-                    ui.selectable_value(&mut self.tab, Tab::Settings, "Settings");
+                    ui.add_space(14.0);
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 20.0;
+                        if tab_button(
+                            ui,
+                            self.tab == Tab::History,
+                            icons::CLOCK_COUNTER_CLOCKWISE,
+                            "History",
+                        ) {
+                            self.tab = Tab::History;
+                        }
+                        if tab_button(ui, self.tab == Tab::Settings, icons::GEAR, "Settings") {
+                            self.tab = Tab::Settings;
+                        }
+                        if tab_button(ui, self.tab == Tab::About, icons::INFO, "About") {
+                            self.tab = Tab::About;
+                        }
+                    });
+                    ui.add_space(10.0);
                 });
             });
 
         egui::CentralPanel::default()
-            .frame(egui::Frame::central_panel(&ctx.style()).inner_margin(12.0))
-            .show(ctx, |ui| match self.tab {
-                Tab::History => self.history_tab(ui),
-                Tab::Settings => self.settings_tab(ui),
+            .frame(egui::Frame::central_panel(&ctx.style()).inner_margin(egui::Margin {
+                left: 24,
+                right: 24,
+                top: 16,
+                bottom: 16,
+            }))
+            .show(ctx, |ui| {
+                centered_col(ui, |ui| match self.tab {
+                    Tab::History => self.history_tab(ui),
+                    Tab::Settings => self.settings_tab(ui),
+                    Tab::About => self.about_tab(ui),
+                });
             });
     }
 }
 
 impl App {
     fn history_tab(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            ui.add(
-                egui::TextEdit::singleline(&mut self.search)
-                    .hint_text("Search transcriptions…")
-                    .desired_width(220.0),
-            );
-            if ui.button("Reload").clicked() {
+        // Constrain the toolbar row's height: a bare `with_layout` here would
+        // greedily take the panel's full remaining height and center the row.
+        ui.allocate_ui_with_layout(
+            egui::vec2(ui.available_width(), 30.0),
+            egui::Layout::right_to_left(egui::Align::Center),
+            |ui| {
+            if self.confirm_clear {
+                if ui.button("Cancel").clicked() {
+                    self.confirm_clear = false;
+                }
+                if ui
+                    .button(
+                        egui::RichText::new(format!("{} Delete all", icons::TRASH))
+                            .color(ui.visuals().error_fg_color),
+                    )
+                    .clicked()
+                {
+                    let _ = history::clear();
+                    self.reload_history();
+                    self.confirm_clear = false;
+                }
+            } else if ui
+                .button(format!("{} Clear…", icons::TRASH))
+                .clicked()
+            {
+                self.confirm_clear = true;
+            }
+            if ui
+                .button(format!("{} Reload", icons::ARROWS_CLOCKWISE))
+                .clicked()
+            {
                 self.reload_history();
             }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if self.confirm_clear {
-                    if ui.button("Cancel").clicked() {
-                        self.confirm_clear = false;
-                    }
-                    if ui
-                        .button(egui::RichText::new("Delete all").color(ui.visuals().error_fg_color))
-                        .clicked()
-                    {
-                        let _ = history::clear();
-                        self.reload_history();
-                        self.confirm_clear = false;
-                    }
-                } else if ui.button("Clear…").clicked() {
-                    self.confirm_clear = true;
-                }
-            });
+            let w = ui.available_width();
+            ui.add_sized(
+                [w, 30.0],
+                egui::TextEdit::singleline(&mut self.search).hint_text(format!(
+                    "{}  Search transcriptions…",
+                    icons::MAGNIFYING_GLASS
+                )),
+            );
         });
-        ui.add_space(6.0);
+        ui.add_space(10.0);
 
         let q = self.search.to_lowercase();
         let shown: Vec<&history::Entry> = self
@@ -162,180 +345,292 @@ impl App {
             .collect();
 
         if shown.is_empty() {
-            ui.add_space(40.0);
+            ui.add_space((ui.available_height() * 0.26).clamp(24.0, 220.0));
             ui.vertical_centered(|ui| {
-                ui.label(
-                    egui::RichText::new(if self.entries.is_empty() {
-                        "No transcriptions yet.\nHold the hotkey and speak — they'll show up here."
-                    } else {
-                        "Nothing matches your search."
-                    })
-                    .weak(),
-                );
+                if self.entries.is_empty() {
+                    glyph_plate(ui, icons::MICROPHONE, 42.0);
+                    ui.add_space(16.0);
+                    ui.label(egui::RichText::new("No transcriptions yet").size(17.0).strong());
+                    ui.add_space(4.0);
+                    ui.label(
+                        egui::RichText::new(
+                            "Hold the hotkey and speak — they'll show up here.",
+                        )
+                        .weak(),
+                    );
+                } else {
+                    glyph_plate(ui, icons::MAGNIFYING_GLASS, 42.0);
+                    ui.add_space(16.0);
+                    ui.label(
+                        egui::RichText::new("Nothing matches your search")
+                            .size(17.0)
+                            .strong(),
+                    );
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new("Try a different phrase.").weak());
+                }
             });
             return;
         }
 
-        let mut copy: Option<String> = None;
+        if !q.is_empty() {
+            ui.label(
+                egui::RichText::new(format!("{} of {}", shown.len(), self.entries.len()))
+                    .small()
+                    .weak(),
+            );
+            ui.add_space(4.0);
+        }
+
+        let mut copy: Option<(u64, String)> = None;
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             for e in shown {
-                theme::card(ui).show(ui, |ui| {
+                let resp = theme::card(ui).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
-                        let when = chrono::DateTime::from_timestamp(e.ts as i64, 0)
-                            .map(|t| {
-                                t.with_timezone(&chrono::Local)
-                                    .format("%b %d · %H:%M")
-                                    .to_string()
-                            })
-                            .unwrap_or_default();
                         ui.label(
-                            egui::RichText::new(when)
+                            egui::RichText::new(rel_time(e.ts))
                                 .small()
+                                .strong()
                                 .color(theme::accent(ui)),
                         );
                         ui.label(
-                            egui::RichText::new(format!("{:.1}s spoken", e.dur_s))
-                                .weak()
-                                .small(),
+                            egui::RichText::new(format!(
+                                "{}  ·  {:.1}s spoken",
+                                abs_time(e.ts),
+                                e.dur_s
+                            ))
+                            .weak()
+                            .small(),
                         );
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.small_button("Copy").clicked() {
-                                copy = Some(e.text.clone());
+                            let flash = self
+                                .copied
+                                .as_ref()
+                                .is_some_and(|(ts, at)| {
+                                    *ts == e.ts && at.elapsed() < Duration::from_millis(1500)
+                                });
+                            if flash {
+                                ui.label(
+                                    egui::RichText::new(format!("{} Copied", icons::CHECK))
+                                        .small()
+                                        .color(theme::success(ui)),
+                                );
+                                ui.ctx().request_repaint_after(Duration::from_millis(200));
+                            } else if ui
+                                .small_button(format!("{} Copy", icons::COPY))
+                                .clicked()
+                            {
+                                copy = Some((e.ts, e.text.clone()));
                             }
                         });
                     });
-                    ui.add_space(2.0);
+                    ui.add_space(4.0);
                     ui.label(&e.text);
                 });
-                ui.add_space(4.0);
+                if resp.response.hovered() {
+                    ui.painter().rect_stroke(
+                        resp.response.rect,
+                        egui::CornerRadius::same(12),
+                        egui::Stroke::new(1.0, theme::border_strong(ui)),
+                        egui::StrokeKind::Inside,
+                    );
+                }
+                ui.add_space(8.0);
             }
         });
-        if let Some(text) = copy {
+        if let Some((ts, text)) = copy {
             ui.ctx().copy_text(text);
+            self.copied = Some((ts, Instant::now()));
         }
     }
 
     fn settings_tab(&mut self, ui: &mut egui::Ui) {
         let mut changed_theme = false;
 
-        theme::card(ui).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.label(egui::RichText::new("Dictation").strong());
-            ui.add_space(6.0);
-            egui::Grid::new("dictation")
-                .num_columns(2)
-                .spacing([24.0, 10.0])
-                .show(ui, |ui| {
-                    ui.label("Push-to-talk key");
-                    let current = KEYS
-                        .iter()
-                        .find(|(k, _)| *k == self.cfg.key)
-                        .map(|(_, l)| *l)
-                        .unwrap_or(self.cfg.key.as_str());
-                    egui::ComboBox::from_id_salt("key")
-                        .selected_text(current)
-                        .show_ui(ui, |ui| {
-                            for (k, label) in KEYS {
-                                ui.selectable_value(&mut self.cfg.key, k.to_string(), *label);
-                            }
-                        });
-                    ui.end_row();
-
-                    ui.label("Live typing");
-                    ui.checkbox(&mut self.cfg.streaming, "words appear as you speak");
-                    ui.end_row();
-
-                    ui.label("Recording indicator");
-                    ui.checkbox(&mut self.cfg.overlay, "floating pill while dictating");
-                    ui.end_row();
-
-                    ui.label("Keep history");
-                    ui.checkbox(&mut self.cfg.history, "");
-                    ui.end_row();
-                });
-        });
-        ui.add_space(8.0);
-
-        theme::card(ui).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.label(egui::RichText::new("Application").strong());
-            ui.add_space(6.0);
-            egui::Grid::new("application")
-                .num_columns(2)
-                .spacing([24.0, 10.0])
-                .show(ui, |ui| {
-                    ui.label("Start on login");
-                    ui.checkbox(&mut self.autostart_on, "");
-                    ui.end_row();
-
-                    ui.label("Theme");
-                    let current = THEMES
-                        .iter()
-                        .find(|(k, _)| *k == self.cfg.theme)
-                        .map(|(_, l)| *l)
-                        .unwrap_or("System");
-                    egui::ComboBox::from_id_salt("theme")
-                        .selected_text(current)
-                        .show_ui(ui, |ui| {
-                            for (k, label) in THEMES {
-                                if ui
-                                    .selectable_value(&mut self.cfg.theme, k.to_string(), *label)
-                                    .clicked()
-                                {
-                                    changed_theme = true;
+        egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+            theme::card(ui).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                section_title(ui, icons::MICROPHONE, "Dictation");
+                ui.add_space(8.0);
+                egui::Grid::new("dictation")
+                    .num_columns(2)
+                    .spacing([24.0, 10.0])
+                    .show(ui, |ui| {
+                        setting_label(ui, icons::KEYBOARD, "Push-to-talk key");
+                        let current = KEYS
+                            .iter()
+                            .find(|(k, _)| *k == self.cfg.key)
+                            .map(|(_, l)| *l)
+                            .unwrap_or(self.cfg.key.as_str());
+                        egui::ComboBox::from_id_salt("key")
+                            .selected_text(current)
+                            .show_ui(ui, |ui| {
+                                for (k, label) in KEYS {
+                                    ui.selectable_value(&mut self.cfg.key, k.to_string(), *label);
                                 }
-                            }
-                        });
-                    ui.end_row();
+                            });
+                        ui.end_row();
 
-                    ui.label("Model");
-                    ui.label(
-                        egui::RichText::new(
-                            self.cfg
-                                .model_dir
-                                .clone()
-                                .unwrap_or_else(|| {
-                                    wc_core::models_dir().join("parakeet-tdt-0.6b-v2-int8")
-                                })
-                                .display()
-                                .to_string(),
-                        )
-                        .weak()
-                        .small(),
-                    );
-                    ui.end_row();
-                });
+                        setting_label(ui, icons::CURSOR_TEXT, "Live typing");
+                        ui.checkbox(&mut self.cfg.streaming, "words appear as you speak");
+                        ui.end_row();
+
+                        setting_label(ui, icons::RECORD, "Recording indicator");
+                        ui.checkbox(&mut self.cfg.overlay, "floating pill while dictating");
+                        ui.end_row();
+
+                        setting_label(ui, icons::CLOCK_COUNTER_CLOCKWISE, "Keep history");
+                        ui.checkbox(&mut self.cfg.history, "log transcriptions locally");
+                        ui.end_row();
+                    });
+            });
+            ui.add_space(12.0);
+
+            theme::card(ui).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                section_title(ui, icons::GEAR, "Application");
+                ui.add_space(8.0);
+                egui::Grid::new("application")
+                    .num_columns(2)
+                    .spacing([24.0, 10.0])
+                    .show(ui, |ui| {
+                        setting_label(ui, icons::ROCKET_LAUNCH, "Start on login");
+                        ui.checkbox(&mut self.autostart_on, "");
+                        ui.end_row();
+
+                        setting_label(ui, icons::PALETTE, "Theme");
+                        let current = THEMES
+                            .iter()
+                            .find(|(k, _)| *k == self.cfg.theme)
+                            .map(|(_, l)| *l)
+                            .unwrap_or("System");
+                        egui::ComboBox::from_id_salt("theme")
+                            .selected_text(current)
+                            .show_ui(ui, |ui| {
+                                for (k, label) in THEMES {
+                                    if ui
+                                        .selectable_value(&mut self.cfg.theme, k.to_string(), *label)
+                                        .clicked()
+                                    {
+                                        changed_theme = true;
+                                    }
+                                }
+                            });
+                        ui.end_row();
+
+                        setting_label(ui, icons::CPU, "Model");
+                        ui.label(
+                            egui::RichText::new(
+                                self.cfg
+                                    .model_dir
+                                    .clone()
+                                    .unwrap_or_else(|| {
+                                        wc_core::models_dir().join("parakeet-tdt-0.6b-v2-int8")
+                                    })
+                                    .display()
+                                    .to_string(),
+                            )
+                            .monospace()
+                            .weak()
+                            .small(),
+                        );
+                        ui.end_row();
+                    });
+            });
+
+            ui.add_space(16.0);
+            ui.horizontal(|ui| {
+                if theme::accent_button(ui, format!("{}  Save", icons::FLOPPY_DISK)).clicked() {
+                    let mut ok = true;
+                    if let Err(e) = config::save(&self.cfg) {
+                        self.status = format!("save failed: {e}");
+                        ok = false;
+                    }
+                    let res = if self.autostart_on {
+                        autostart::enable()
+                    } else {
+                        autostart::disable()
+                    };
+                    if let Err(e) = res {
+                        self.status = format!("autostart failed: {e}");
+                        ok = false;
+                    }
+                    if ok {
+                        self.status =
+                            "Saved. Key changes apply after the daemon restarts.".into();
+                    }
+                    self.saved_ok = ok;
+                }
+                if !self.status.is_empty() {
+                    if self.saved_ok {
+                        ui.label(
+                            egui::RichText::new(icons::CHECK)
+                                .small()
+                                .color(theme::success(ui)),
+                        );
+                        ui.label(egui::RichText::new(&self.status).weak().small());
+                    } else {
+                        ui.label(
+                            egui::RichText::new(&self.status)
+                                .small()
+                                .color(ui.visuals().error_fg_color),
+                        );
+                    }
+                }
+            });
         });
 
         if changed_theme {
             theme::apply(ui.ctx(), &self.cfg.theme);
         }
+    }
 
-        ui.add_space(12.0);
-        ui.horizontal(|ui| {
-            if ui.button(egui::RichText::new("Save").strong()).clicked() {
-                let mut ok = true;
-                if let Err(e) = config::save(&self.cfg) {
-                    self.status = format!("save failed: {e}");
-                    ok = false;
-                }
-                let res = if self.autostart_on {
-                    autostart::enable()
-                } else {
-                    autostart::disable()
-                };
-                if let Err(e) = res {
-                    self.status = format!("autostart failed: {e}");
-                    ok = false;
-                }
-                if ok {
-                    self.status = "Saved. Key changes apply after the daemon restarts.".into();
-                }
-            }
-            if !self.status.is_empty() {
-                ui.label(egui::RichText::new(&self.status).weak().small());
-            }
+    fn about_tab(&mut self, ui: &mut egui::Ui) {
+        egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+            ui.add_space(48.0);
+            ui.vertical_centered(|ui| {
+                glyph_plate(ui, icons::WAVEFORM, 44.0);
+                ui.add_space(16.0);
+                ui.label(egui::RichText::new("WhisprCatch").size(26.0).strong());
+                ui.add_space(2.0);
+                ui.label(
+                    egui::RichText::new(format!("v{}", env!("CARGO_PKG_VERSION")))
+                        .monospace()
+                        .weak(),
+                );
+                ui.add_space(16.0);
+                ui.label("Push-to-talk dictation that runs entirely on your machine.");
+                ui.add_space(2.0);
+                ui.label(
+                    egui::RichText::new(
+                        "Hold a key, speak, release — text appears at your cursor.",
+                    )
+                    .weak(),
+                );
+                ui.add_space(20.0);
+                ui.hyperlink_to(format!("{}  GitHub", icons::GITHUB_LOGO), GITHUB_URL);
+                ui.add_space(4.0);
+                ui.hyperlink_to(format!("{}  whisper-catch.vercel.app", icons::GLOBE), SITE_URL);
+                ui.add_space(24.0);
+                ui.label(
+                    egui::RichText::new(format!(
+                        "Config · {}",
+                        config::config_path().display()
+                    ))
+                    .monospace()
+                    .weak()
+                    .small(),
+                );
+                ui.add_space(16.0);
+                ui.label(
+                    egui::RichText::new(
+                        "MIT licensed · Built for people who think faster than they type.",
+                    )
+                    .weak()
+                    .small(),
+                );
+            });
         });
     }
 }

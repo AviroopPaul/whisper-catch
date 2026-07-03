@@ -1103,6 +1103,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui-phosphor"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "171d57331491e92f0a7c73fad1088716e3200984309f4f8684731b750cee1378"
+dependencies = [
+ "egui",
+]
+
+[[package]]
 name = "egui-wgpu"
 version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4393,7 +4402,7 @@ dependencies = [
 
 [[package]]
 name = "wc-core"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "cpal",
@@ -4408,7 +4417,7 @@ dependencies = [
 
 [[package]]
 name = "wc-hotkey"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "evdev",
@@ -4417,7 +4426,7 @@ dependencies = [
 
 [[package]]
 name = "wc-inject"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "enigo",
@@ -4427,7 +4436,7 @@ dependencies = [
 
 [[package]]
 name = "wc-models"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "hex",
@@ -4438,7 +4447,7 @@ dependencies = [
 
 [[package]]
 name = "wc-tray"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "ksni",
@@ -4611,13 +4620,14 @@ dependencies = [
 
 [[package]]
 name = "whisper-catch"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
  "clap",
  "dirs",
  "eframe",
+ "egui-phosphor",
  "env_logger 0.11.11",
  "fs2",
  "log",

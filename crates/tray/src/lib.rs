@@ -29,7 +29,10 @@ mod linux {
             if self.state.recording.load(Ordering::Relaxed) {
                 "media-record-symbolic".into()
             } else if self.state.is_enabled() {
-                "audio-input-microphone-symbolic".into()
+                // Own app icon; SNI resolves it from hicolor when installed via
+                // the .deb. Running uninstalled, GNOME falls back to a generic
+                // glyph — acceptable for dev runs.
+                "whisper-catch".into()
             } else {
                 "microphone-sensitivity-muted-symbolic".into()
             }

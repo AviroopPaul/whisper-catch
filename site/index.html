@@ -3,174 +3,825 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WhisprCatch — local push-to-talk dictation</title>
-<meta name="description" content="Hold a key, speak, release — punctuated text appears at your cursor. 100% on-device speech-to-text for Linux.">
+<title>WhisprCatch — local push-to-talk dictation for Linux</title>
+<meta name="description" content="Hold a key, speak, release — punctuated text appears at your cursor. 100% on-device speech-to-text for Linux. No cloud, no account, no audio leaving your laptop.">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<meta property="og:title" content="WhisprCatch — local push-to-talk dictation for Linux">
+<meta property="og:description" content="Hold a key, speak, release — punctuated text appears at your cursor. Runs entirely on your machine. No cloud, no account, no subscription.">
+<meta property="og:image" content="assets/icon-512.png">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://whisper-catch.vercel.app/">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#0b0e14" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0b0e14; --bg2: #11151f; --card: #151a26; --border: #232a3a;
-    --text: #e6e9f0; --muted: #8b93a7; --accent: #5eead4; --accent2: #38bdf8;
+    color-scheme: dark light;
+    --bg-0: #0b0e14;
+    --bg-1: #11151f;
+    --bg-2: #151a26;
+    --border: #232a3a;
+    --border-strong: #334155;
+    --text-1: #e6e9f0;
+    --text-2: #8b93a7;
+    --accent: #5eead4;
+    --accent-hover: #99f6e4;
+    --accent-subtle: rgba(94, 234, 212, .10);
+    --on-accent: #042f2c;
+    --success: #34d399;
+    --error: #f87171;
+    --e-1: none;
+    --e-2: none;
+    --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", monospace;
   }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg-0: #f8fafc;
+      --bg-1: #ffffff;
+      --bg-2: #ffffff;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --text-1: #0f172a;
+      --text-2: #64748b;
+      --accent: #0d9488;
+      --accent-hover: #0f766e;
+      --accent-subtle: rgba(13, 148, 136, .08);
+      --on-accent: #ffffff;
+      --success: #059669;
+      --error: #dc2626;
+      --e-1: 0 1px 2px rgba(2, 6, 23, .05);
+      --e-2: 0 4px 16px rgba(2, 6, 23, .08);
+    }
+  }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 88px; }
   body {
-    background: var(--bg); color: var(--text);
-    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg-0);
+    color: var(--text-1);
+    font: 400 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
   }
-  .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
-  header { padding: 28px 0; display: flex; justify-content: space-between; align-items: center; }
-  .logo { font-weight: 700; font-size: 18px; letter-spacing: -.02em; }
-  .logo span { color: var(--accent); }
-  nav a { color: var(--muted); text-decoration: none; margin-left: 24px; font-size: 14px; }
-  nav a:hover { color: var(--text); }
+  ::selection { background: var(--accent); color: var(--on-accent); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-hover); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 
-  .hero { text-align: center; padding: 72px 0 40px; }
-  .hero h1 {
-    font-size: clamp(34px, 6vw, 58px); line-height: 1.1; letter-spacing: -.03em; font-weight: 800;
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  .eyebrow {
+    font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 12px;
   }
-  .hero h1 em {
-    font-style: normal;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    -webkit-background-clip: text; background-clip: text; color: transparent;
+  h2 {
+    font-size: clamp(26px, 3.5vw, 34px); font-weight: 700; line-height: 1.15;
+    letter-spacing: -.02em; margin-bottom: 12px;
   }
-  .hero p.sub { color: var(--muted); font-size: 19px; max-width: 560px; margin: 20px auto 0; }
-  .keys { margin: 28px 0 8px; color: var(--muted); font-size: 15px; }
+  .section-intro { color: var(--text-2); font-size: 18px; max-width: 620px; }
+  section { padding: 96px 0; }
+  @media (max-width: 720px) { section { padding: 64px 0; } }
+
   kbd {
-    background: var(--card); border: 1px solid var(--border); border-bottom-width: 3px;
-    border-radius: 6px; padding: 3px 10px; font: 600 13px ui-monospace, monospace; color: var(--text);
+    background: var(--bg-2); border: 1px solid var(--border); border-bottom-width: 3px;
+    border-radius: 6px; padding: 3px 10px;
+    font: 600 13px/1.4 var(--mono); color: var(--text-1);
+    display: inline-block;
+    transition: transform .12s ease, border-bottom-width .12s ease, background .15s ease;
   }
-  .cta { margin-top: 32px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  kbd.pressed {
+    transform: translateY(2px); border-bottom-width: 1px;
+    background: var(--accent-subtle); border-color: var(--border-strong);
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg-0) 82%, transparent);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .logo { font-weight: 700; font-size: 18px; letter-spacing: -.02em; color: var(--text-1); display: flex; align-items: center; gap: 9px; }
+  .logo:hover { color: var(--text-1); }
+  .logo svg { color: var(--accent); }
+  .logo b { font-weight: 700; } .logo b span { color: var(--accent); }
+  .nav-links { display: flex; align-items: center; gap: 24px; }
+  .nav-links a { color: var(--text-2); font-size: 14px; font-weight: 500; transition: color .15s ease; }
+  .nav-links a:hover { color: var(--text-1); }
+  .nav-cta {
+    background: var(--accent-subtle); color: var(--accent) !important;
+    padding: 7px 14px; border-radius: 8px; border: 1px solid transparent;
+    transition: border-color .15s ease;
+  }
+  .nav-cta:hover { border-color: var(--accent); color: var(--accent) !important; }
+  @media (max-width: 780px) { .nav-links a:not(.nav-cta) { display: none; } }
+
+  /* ---------- Hero ---------- */
+  .hero { text-align: center; padding: 88px 0 64px; }
+  @media (max-width: 720px) { .hero { padding: 56px 0 48px; } }
+  .hero h1 {
+    font-size: clamp(38px, 6vw, 60px); font-weight: 700; line-height: 1.08; letter-spacing: -.03em;
+  }
+  .hero h1 em { font-style: normal; color: var(--accent); }
+  .hero .sub {
+    color: var(--text-2); font-size: 18px; line-height: 1.6;
+    max-width: 560px; margin: 20px auto 0;
+  }
+  .ritual { margin: 28px 0 4px; color: var(--text-2); font-size: 15px; }
+  .ritual .arrow { color: var(--text-2); opacity: .6; padding: 0 2px; }
+  .cta { margin-top: 32px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
   .btn {
-    display: inline-block; padding: 13px 26px; border-radius: 10px; text-decoration: none;
-    font-weight: 600; font-size: 15px; transition: transform .12s ease, box-shadow .12s ease;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 13px 26px; border-radius: 8px; font-weight: 600; font-size: 15px;
+    transition: transform .12s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
+    border: 1px solid transparent; cursor: pointer;
   }
-  .btn-primary {
-    background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #06251f;
-  }
-  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 30px rgba(94,234,212,.25); }
-  .btn-ghost { border: 1px solid var(--border); color: var(--text); }
-  .btn-ghost:hover { border-color: var(--muted); }
-  .cta-note { color: var(--muted); font-size: 13px; margin-top: 12px; }
+  .btn-primary { background: var(--accent); color: var(--on-accent); }
+  .btn-primary:hover { transform: translateY(-1px); color: var(--on-accent); box-shadow: var(--e-2); }
+  .btn-ghost { border-color: var(--border); color: var(--text-1); }
+  .btn-ghost:hover { border-color: var(--border-strong); color: var(--text-1); transform: translateY(-1px); }
+  .cta-note { color: var(--text-2); font-size: 13.5px; margin-top: 14px; }
 
-  .demo {
-    margin: 56px auto 0; max-width: 640px; background: var(--bg2); border: 1px solid var(--border);
-    border-radius: 12px; overflow: hidden; text-align: left;
+  /* ---------- Demo (mock dictation) ---------- */
+  .demo { max-width: 680px; margin: 64px auto 0; text-align: left; }
+  .demo-window {
+    background: var(--bg-1); border: 1px solid var(--border); border-radius: 16px;
+    overflow: hidden; box-shadow: var(--e-2);
   }
-  .demo-bar { display: flex; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
-  .demo-bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--border); }
-  .demo pre {
-    padding: 18px 20px; font: 14px/1.7 ui-monospace, "Cascadia Code", monospace;
-    color: var(--muted); overflow-x: auto;
+  .demo-titlebar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
   }
-  .demo .g { color: var(--accent); }
-  .demo .w { color: var(--text); }
+  .demo-titlebar i { width: 11px; height: 11px; border-radius: 50%; background: var(--border); }
+  .demo-titlebar span {
+    margin-left: 10px; font: 400 12.5px/1 var(--mono); color: var(--text-2);
+  }
+  .demo-field {
+    min-height: 150px; padding: 20px 24px 8px;
+    font-size: 16px; line-height: 1.7; color: var(--text-1);
+  }
+  .demo-field .placeholder { color: var(--text-2); opacity: .55; }
+  .caret {
+    display: inline-block; width: 2px; height: 1.15em; background: var(--accent);
+    vertical-align: text-bottom; margin-left: 1px;
+    animation: blink 1.06s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .demo-status {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 72px; padding: 8px 24px 20px; position: relative;
+  }
+  .demo-meta {
+    font: 400 13px/1.5 var(--mono); color: var(--accent);
+    opacity: 0; transition: opacity .3s ease;
+  }
+  .demo-meta.show { opacity: 1; }
+  .demo-hint {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 16px; color: var(--text-2); font-size: 13.5px;
+  }
 
-  section.features { padding: 72px 0; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  /* The recording pill — faithful to the real overlay */
+  .pill {
+    position: absolute; left: 50%; transform: translate(-50%, 6px);
+    display: inline-flex; align-items: center; gap: 10px;
+    background: rgba(16, 20, 30, .93);
+    border: 1px solid rgba(94, 234, 212, .24);
+    border-radius: 999px; padding: 10px 18px;
+    color: #e6e9f0; font-size: 14px; font-weight: 500; white-space: nowrap;
+    opacity: 0; pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  .pill.show { opacity: 1; transform: translate(-50%, 0); }
+  .pill .dot {
+    width: 10px; height: 10px; border-radius: 50%; background: #ef4444; flex: none;
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(.82); opacity: .65; }
+    50%      { transform: scale(1.12); opacity: 1; }
+  }
+  .pill .bars { display: flex; align-items: center; gap: 3px; height: 18px; }
+  .pill .bars i {
+    width: 3px; border-radius: 2px; background: #5eead4; height: 6px;
+    animation: level .9s ease-in-out infinite;
+  }
+  .pill .bars i:nth-child(1) { animation-delay: 0s; }
+  .pill .bars i:nth-child(2) { animation-delay: .18s; }
+  .pill .bars i:nth-child(3) { animation-delay: .36s; }
+  .pill .bars i:nth-child(4) { animation-delay: .54s; }
+  @keyframes level {
+    0%, 100% { height: 5px; opacity: .7; }
+    50%      { height: 16px; opacity: 1; }
+  }
+
+  /* ---------- How it works ---------- */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 48px; }
+  @media (max-width: 720px) { .steps { grid-template-columns: 1fr; } }
+  .step {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px; box-shadow: var(--e-1);
+  }
+  .step .step-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .step .plate {
+    width: 48px; height: 48px; border-radius: 12px; flex: none;
+    background: var(--accent-subtle); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step .num { font: 600 13px/1 var(--mono); color: var(--text-2); letter-spacing: .08em; }
+  .step h3 { font-size: 18px; font-weight: 600; letter-spacing: -.01em; margin: 2px 0 0; }
+  .step p { color: var(--text-2); font-size: 15.5px; }
+
+  /* ---------- Features ---------- */
+  .features-band { background: var(--bg-1); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 48px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
   .card {
-    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px;
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px; box-shadow: var(--e-1);
+    transition: border-color .15s ease, transform .12s ease, box-shadow .15s ease;
   }
-  .card h3 { font-size: 16px; margin-bottom: 8px; }
-  .card h3::before { content: "▸ "; color: var(--accent); }
-  .card p { color: var(--muted); font-size: 14.5px; }
+  .card:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: var(--e-2); }
+  .card .plate {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: var(--accent-subtle); color: var(--accent);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 16px;
+  }
+  .card h3 { font-size: 18px; font-weight: 600; letter-spacing: -.01em; margin-bottom: 8px; }
+  .card p { color: var(--text-2); font-size: 15.5px; }
 
-  section.install { padding: 0 0 72px; }
-  section.install h2, section.features h2 { font-size: 26px; letter-spacing: -.02em; margin-bottom: 20px; }
-  .code {
-    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
-    padding: 16px 18px; font: 14px/1.8 ui-monospace, monospace; overflow-x: auto; color: var(--text);
+  /* ---------- Privacy / comparison ---------- */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 48px; }
+  @media (max-width: 720px) { .compare { grid-template-columns: 1fr; } }
+  .compare .card:hover { transform: none; }
+  .compare-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 20px; }
+  .compare-title h3 { margin: 0; }
+  .tag {
+    font-size: 12px; font-weight: 600; letter-spacing: .04em;
+    padding: 3px 10px; border-radius: 999px; white-space: nowrap;
   }
-  .code .c { color: var(--muted); }
+  .tag-muted { background: var(--bg-1); border: 1px solid var(--border); color: var(--text-2); }
+  .tag-accent { background: var(--accent-subtle); color: var(--accent); }
+  .compare ul { list-style: none; }
+  .compare li {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 12px 0; border-top: 1px solid var(--border);
+    color: var(--text-2); font-size: 15.5px;
+  }
+  .compare li svg { flex: none; margin-top: 3px; }
+  .compare .local { border-color: var(--border-strong); }
+  .compare .local li { color: var(--text-1); }
+  .li-x { color: var(--error); opacity: .8; }
+  .li-check { color: var(--success); }
+  .privacy-link { display: inline-block; margin-top: 32px; font-weight: 500; font-size: 15px; }
+
+  /* ---------- Install ---------- */
+  .install-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 48px; margin-top: 48px; align-items: start; }
+  @media (max-width: 860px) { .install-grid { grid-template-columns: 1fr; gap: 32px; } }
+  .install-steps { list-style: none; counter-reset: inst; }
+  .install-steps li {
+    counter-increment: inst;
+    display: flex; gap: 16px; align-items: flex-start; padding: 12px 0;
+  }
+  .install-steps li::before {
+    content: counter(inst);
+    width: 28px; height: 28px; border-radius: 50%; flex: none;
+    background: var(--accent-subtle); color: var(--accent);
+    font: 600 14px/28px var(--mono); text-align: center;
+  }
+  .install-steps li div { padding-top: 2px; }
+  .install-steps strong { font-weight: 600; }
+  .install-steps p { color: var(--text-2); font-size: 15.5px; margin-top: 2px; }
+  .install-note { color: var(--text-2); font-size: 13.5px; margin-top: 20px; }
+  .install-cta { margin-top: 24px; }
+
+  details.terminal {
+    background: var(--bg-1); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden;
+  }
+  details.terminal summary {
+    cursor: pointer; padding: 16px 20px; font-weight: 600; font-size: 15px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    list-style: none; user-select: none;
+  }
+  details.terminal summary::-webkit-details-marker { display: none; }
+  details.terminal summary::after {
+    content: ""; width: 8px; height: 8px; flex: none;
+    border-right: 2px solid var(--text-2); border-bottom: 2px solid var(--text-2);
+    transform: rotate(45deg); margin-right: 4px; transition: transform .15s ease;
+  }
+  details.terminal[open] summary::after { transform: rotate(-135deg); margin-top: 6px; }
+  details.terminal .code {
+    border-top: 1px solid var(--border); padding: 16px 20px;
+    font: 400 14px/1.8 var(--mono); color: var(--text-1);
+    white-space: pre; overflow-x: auto;
+  }
+  .code .c { color: var(--text-2); }
   .code .p { color: var(--accent); user-select: none; }
 
-  footer {
-    border-top: 1px solid var(--border); padding: 28px 0; color: var(--muted); font-size: 14px;
-    display: flex; justify-content: space-between; flex-wrap: gap; gap: 12px;
+  /* ---------- Screenshots ---------- */
+  .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 48px; }
+  @media (max-width: 720px) { .shots { grid-template-columns: 1fr; } }
+  .shot { display: block; }
+  .shot .frame {
+    background: var(--bg-1); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; position: relative; box-shadow: var(--e-1);
   }
-  footer a { color: var(--muted); }
+  .shot .frame::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      linear-gradient(var(--border) 1px, transparent 1px) 0 0 / 100% 33.4%,
+      linear-gradient(90deg, var(--border) 1px, transparent 1px) 0 0 / 33.4% 100%;
+    opacity: .35;
+  }
+  .shot .frame img {
+    position: relative; z-index: 1;
+    display: block; width: 100%; height: 100%; object-fit: cover;
+  }
+  .shot .frame.settings { aspect-ratio: 16 / 10; }
+  .shot .frame.overlay { aspect-ratio: 21 / 6; }
+  .shot .frame.overlay img { object-fit: contain; padding: 12px; }
+  .shot.wide { grid-column: 1 / -1; }
+  .shot figcaption { color: var(--text-2); font-size: 13.5px; margin-top: 10px; }
+  .shot figcaption b { color: var(--text-1); font-weight: 600; }
+
+  /* ---------- FAQ ---------- */
+  .faq-list { margin-top: 40px; max-width: 760px; }
+  details.faq { border-top: 1px solid var(--border); }
+  details.faq:last-child { border-bottom: 1px solid var(--border); }
+  details.faq summary {
+    cursor: pointer; padding: 20px 4px; list-style: none; user-select: none;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    font-size: 18px; font-weight: 600; letter-spacing: -.01em;
+  }
+  details.faq summary::-webkit-details-marker { display: none; }
+  details.faq summary::after {
+    content: "+"; color: var(--accent); font-size: 22px; font-weight: 400; flex: none;
+    line-height: 1; transition: transform .15s ease;
+  }
+  details.faq[open] summary::after { transform: rotate(45deg); }
+  details.faq .answer { padding: 0 4px 24px; color: var(--text-2); font-size: 16px; max-width: 640px; }
+  details.faq .answer code { font: 400 14px var(--mono); color: var(--text-1); }
+
+  /* ---------- Footer ---------- */
+  footer { border-top: 1px solid var(--border); padding: 40px 0 48px; }
+  .quirk { text-align: center; color: var(--text-2); font-size: 13.5px; margin-bottom: 28px; }
+  .foot-row {
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px; color: var(--text-2); font-size: 14px;
+  }
+  .foot-row a { color: var(--text-2); margin-left: 20px; transition: color .15s ease; }
+  .foot-row a:first-child { margin-left: 0; }
+  .foot-row a:hover { color: var(--text-1); }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div class="logo">Whispr<span>Catch</span></div>
-    <nav>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="#top" aria-label="WhisprCatch home">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/><path d="M12 18v3.5"/>
+      </svg>
+      <b>Whispr<span>Catch</span></b>
+    </a>
+    <nav class="nav-links" aria-label="Main">
       <a href="#features">Features</a>
-      <a href="#install">Install</a>
+      <a href="#how">How it works</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#faq">FAQ</a>
       <a href="https://github.com/AviroopPaul/whisper-catch">GitHub</a>
+      <a class="nav-cta" href="https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_amd64.deb">Download</a>
     </nav>
-  </header>
+  </div>
+</header>
 
+<main id="top">
+
+  <!-- ================= Hero ================= -->
   <section class="hero">
-    <h1>Speak. Release.<br><em>Text appears.</em></h1>
-    <p class="sub">Push-to-talk dictation that runs entirely on your machine.
-       No cloud, no subscription, no audio leaving your laptop.</p>
-    <div class="keys">hold <kbd>Right Alt</kbd> → speak → release</div>
-    <div class="cta">
-      <a class="btn btn-primary" href="https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_amd64.deb">Download .deb</a>
-      <a class="btn btn-ghost" href="https://github.com/AviroopPaul/whisper-catch">Build from source</a>
-    </div>
-    <div class="cta-note">Linux (Ubuntu/Debian, x86-64) · macOS coming soon · MIT licensed</div>
+    <div class="wrap">
+      <h1>Speak. Release.<br><em>Text appears.</em></h1>
+      <p class="sub">Push-to-talk dictation that runs entirely on your machine.
+         No cloud, no subscription, no audio leaving your laptop.</p>
+      <p class="ritual">hold <kbd>Right Alt</kbd> <span class="arrow">→</span> speak <span class="arrow">→</span> release</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_amd64.deb">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/>
+          </svg>
+          Download .deb
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/AviroopPaul/whisper-catch">View on GitHub</a>
+      </div>
+      <p class="cta-note">Free &amp; open source · Linux x86-64 · No account, no cloud</p>
 
-    <div class="demo">
-      <div class="demo-bar"><i></i><i></i><i></i></div>
-      <pre><span class="p">$</span> whisper-catch ptt
-<span class="g">ready</span> — hold RightAlt and speak, release to type.
-<span class="c">recording...</span>
-<span class="c">8.2s audio → 0.31s inference</span>
-<span class="w">And so, my fellow Americans, ask not what your country
-can do for you, ask what you can do for your country.</span></pre>
-    </div>
-  </section>
-
-  <section class="features" id="features">
-    <h2>Why WhisprCatch</h2>
-    <div class="grid">
-      <div class="card">
-        <h3>100% on-device</h3>
-        <p>NVIDIA Parakeet 0.6B running locally via ONNX Runtime. Beats Whisper large-v3 on English accuracy — with zero network calls.</p>
-      </div>
-      <div class="card">
-        <h3>Punctuation that just works</h3>
-        <p>Native capitalization and punctuation from the model. No lowercase word soup to clean up afterwards.</p>
-      </div>
-      <div class="card">
-        <h3>Fast on CPU</h3>
-        <p>~25× realtime on a modern laptop CPU. A ten-second sentence lands in about 400 ms. No GPU required.</p>
-      </div>
-      <div class="card">
-        <h3>Types anywhere</h3>
-        <p>Editors, browsers, chat apps, terminals — text is injected at your cursor in whatever has focus.</p>
-      </div>
-      <div class="card">
-        <h3>Tray-native</h3>
-        <p>Lives in your top bar. Toggle listening, watch session stats, open history &amp; settings — one click away.</p>
-      </div>
-      <div class="card">
-        <h3>Your data stays yours</h3>
-        <p>Optional local transcription history you can browse, copy from, and wipe. It's a file on your disk, nothing more.</p>
+      <!-- Animated dictation mock -->
+      <div class="demo" id="demo">
+        <div class="demo-window" role="img" aria-label="Demo: while Right Alt is held a small recording pill listens, and on release the transcribed sentence is typed into the focused text field.">
+          <div class="demo-titlebar" aria-hidden="true">
+            <i></i><i></i><i></i>
+            <span>notes.md — any app, any text field</span>
+          </div>
+          <div class="demo-field" aria-hidden="true">
+            <span id="demo-text"><span class="placeholder">Click into any text field…</span></span><span class="caret" id="demo-caret"></span>
+          </div>
+          <div class="demo-status" aria-hidden="true">
+            <div class="pill" id="demo-pill">
+              <span class="dot"></span>
+              <span>Listening…</span>
+              <span class="bars"><i></i><i></i><i></i><i></i></span>
+            </div>
+            <div class="demo-meta" id="demo-meta">8.2s audio → 0.31s inference</div>
+          </div>
+        </div>
+        <div class="demo-hint" aria-hidden="true">
+          <kbd id="demo-key">Right Alt</kbd>
+          <span id="demo-hint-label">hold to talk</span>
+        </div>
       </div>
     </div>
   </section>
 
-  <section class="install" id="install">
-    <h2>Install</h2>
-    <p style="color:var(--muted); margin-bottom:14px;">Download the .deb, double-click to install, launch <b style="color:var(--text)">WhisprCatch</b> from your app menu.
-       A setup wizard handles permissions and the model download — no terminal needed.</p>
-    <div class="code">
-<span class="c"># or, the terminal way</span>
+  <!-- ================= How it works ================= -->
+  <section id="how">
+    <div class="wrap">
+      <p class="eyebrow">How it works</p>
+      <h2>Three moves. No windows.</h2>
+      <p class="section-intro">No app to focus, no button to find. The hotkey is the whole interface.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-head">
+            <div class="plate">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M8 14.5h8"/>
+              </svg>
+            </div>
+            <div><div class="num">01</div><h3>Hold</h3></div>
+          </div>
+          <p>Hold Right Alt anywhere — any app, any text field. Nothing to launch, nothing to click.</p>
+        </div>
+        <div class="step">
+          <div class="step-head">
+            <div class="plate">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/><path d="M12 18v3.5"/><path d="M8.5 21.5h7"/>
+              </svg>
+            </div>
+            <div><div class="num">02</div><h3>Speak</h3></div>
+          </div>
+          <p>Say what you mean. A small pill shows it's listening — that's the only UI you see.</p>
+        </div>
+        <div class="step">
+          <div class="step-head">
+            <div class="plate">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 4v9"/><path d="m8 9.5 4 3.5 4-3.5"/><path d="M5 19h14"/><path d="M5 16v3"/><path d="M19 16v3"/>
+              </svg>
+            </div>
+            <div><div class="num">03</div><h3>Release</h3></div>
+          </div>
+          <p>Punctuated, capitalized text lands at your cursor in under half a second.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Features ================= -->
+  <div class="features-band">
+    <section id="features">
+      <div class="wrap">
+        <p class="eyebrow">Features</p>
+        <h2>Why WhisprCatch</h2>
+        <div class="grid">
+          <div class="card">
+            <div class="plate">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 4v3M14 4v3M10 17v3M14 17v3M4 10h3M4 14h3M17 10h3M17 14h3"/>
+              </svg>
+            </div>
+            <h3>100% on-device</h3>
+            <p>NVIDIA Parakeet 0.6B running locally via ONNX Runtime. Beats Whisper large-v3 on English accuracy — with zero network calls.</p>
+          </div>
+          <div class="card">
+            <div class="plate">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4.5 15.5a8 8 0 1 1 15 0"/><path d="M12 15.5 15.5 10"/><circle cx="12" cy="15.5" r="1.4"/>
+              </svg>
+            </div>
+            <h3>Fast on CPU</h3>
+            <p>~25× realtime on a modern laptop CPU. A ten-second sentence lands in about 400 ms. No GPU required.</p>
+          </div>
+          <div class="card">
+            <div class="plate">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 18 9.5 5.5 15 18"/><path d="M6 13.5h7"/><circle cx="19" cy="17" r="1.3" fill="currentColor" stroke="none"/>
+              </svg>
+            </div>
+            <h3>Punctuation that just works</h3>
+            <p>Native capitalization and punctuation from the model. No lowercase word soup to clean up afterwards.</p>
+          </div>
+          <div class="card">
+            <div class="plate">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 4.5c1.7 0 3 .6 3 2v11c0 1.4 1.3 2 3 2"/><path d="M15 4.5c-1.7 0-3 .6-3 2"/><path d="M9 19.5c1.7 0 3-.6 3-2"/><path d="M4 12h5M15 12h5"/>
+              </svg>
+            </div>
+            <h3>Types anywhere</h3>
+            <p>Editors, browsers, chat apps, terminals — text is injected at your cursor in whatever has focus.</p>
+          </div>
+          <div class="card">
+            <div class="plate">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="15" rx="2"/><path d="M3 8.5h18"/><circle cx="17.5" cy="6.25" r="1" fill="currentColor" stroke="none"/>
+              </svg>
+            </div>
+            <h3>Tray-native</h3>
+            <p>Lives in your top bar. Toggle listening, watch session stats, open history &amp; settings — one click away.</p>
+          </div>
+          <div class="card">
+            <div class="plate">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="9" width="18" height="7" rx="2"/><circle cx="7" cy="12.5" r="1.2" fill="currentColor" stroke="none"/><path d="M14 12.5h4"/>
+              </svg>
+            </div>
+            <h3>Your data stays yours</h3>
+            <p>Optional local transcription history you can browse, copy from, and wipe. It's a file on your disk, nothing more.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= Privacy ================= -->
+  <section id="privacy">
+    <div class="wrap">
+      <p class="eyebrow">Privacy</p>
+      <h2>Your voice never leaves this laptop.</h2>
+      <p class="section-intro">Most dictation tools are microphones wired to someone else's data center. WhisprCatch is a model on your CPU.</p>
+      <div class="compare">
+        <div class="card">
+          <div class="compare-title">
+            <h3>Cloud dictation</h3>
+            <span class="tag tag-muted">Their servers</span>
+          </div>
+          <ul>
+            <li><svg class="li-x" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>Audio is uploaded to servers you don't control</li>
+            <li><svg class="li-x" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>Account required, usually a subscription too</li>
+            <li><svg class="li-x" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>Dead the moment your connection drops</li>
+            <li><svg class="li-x" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>Transcripts live in a dashboard, under their retention policy</li>
+            <li><svg class="li-x" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>Latency is your network plus their queue</li>
+          </ul>
+        </div>
+        <div class="card local">
+          <div class="compare-title">
+            <h3>WhisprCatch</h3>
+            <span class="tag tag-accent">This laptop</span>
+          </div>
+          <ul>
+            <li><svg class="li-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg>Audio is decoded on your CPU, in memory — zero network calls during dictation</li>
+            <li><svg class="li-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg>No account. No subscription. MIT-licensed.</li>
+            <li><svg class="li-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg>Fully offline after a one-time model download</li>
+            <li><svg class="li-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg>History is a plain file on your disk. Read it, grep it, delete it.</li>
+            <li><svg class="li-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg>0.31 s inference on an 8-second clip. No round trip.</li>
+          </ul>
+        </div>
+      </div>
+      <a class="privacy-link" href="https://github.com/AviroopPaul/whisper-catch">Read the source →</a>
+    </div>
+  </section>
+
+  <!-- ================= Install ================= -->
+  <div class="features-band">
+    <section id="install">
+      <div class="wrap">
+        <p class="eyebrow">Install</p>
+        <h2>Install in a minute.</h2>
+        <div class="install-grid">
+          <div>
+            <ol class="install-steps">
+              <li><div><strong>Download the .deb</strong><p>One file, Ubuntu/Debian x86-64.</p></div></li>
+              <li><div><strong>Double-click to install</strong><p>Or open it with your software center.</p></div></li>
+              <li><div><strong>Launch WhisprCatch</strong><p>A setup wizard handles keyboard permission and the model download — no terminal needed.</p></div></li>
+            </ol>
+            <div class="install-cta">
+              <a class="btn btn-primary" href="https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_amd64.deb">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/>
+                </svg>
+                Download .deb
+              </a>
+            </div>
+            <p class="install-note">First launch downloads the ~660 MB speech model, once. After that, everything is offline.</p>
+          </div>
+          <details class="terminal">
+            <summary>Prefer the terminal?</summary>
+            <div class="code"><span class="c"># install the package</span>
 <span class="p">$</span> sudo apt install ./whisper-catch_amd64.deb
 <span class="p">$</span> whisper-catch ptt
-<br>
-<span class="c"># or from source</span>
-<span class="p">$</span> git clone https://github.com/AviroopPaul/whisper-catch &amp;&amp; cd whisper-catch
-<span class="p">$</span> cargo build --release -p whisper-catch
+
+<span class="c"># or build from source</span>
+<span class="p">$</span> git clone https://github.com/AviroopPaul/whisper-catch
+<span class="p">$</span> cd whisper-catch
+<span class="p">$</span> cargo build --release -p whisper-catch</div>
+          </details>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= Screenshots ================= -->
+  <section id="screenshots">
+    <div class="wrap">
+      <p class="eyebrow">Screenshots</p>
+      <h2>Small app. Smaller footprint.</h2>
+      <p class="section-intro">A history you can search, a settings page you'll visit once, and a pill you'll see every day.</p>
+      <div class="shots">
+        <figure class="shot">
+          <div class="frame settings">
+            <img src="assets/shot-settings-history.png" alt="WhisprCatch history tab showing searchable transcriptions with timestamps and copy buttons" loading="lazy">
+          </div>
+          <figcaption><b>History</b> — every utterance, searchable and one click to copy.</figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="frame settings">
+            <img src="assets/shot-settings-settings.png" alt="WhisprCatch settings tab with dictation hotkey, model, and application options" loading="lazy">
+          </div>
+          <figcaption><b>Settings</b> — hotkey, model, and startup options. Set once, forget.</figcaption>
+        </figure>
+        <figure class="shot wide">
+          <div class="frame overlay">
+            <img src="assets/shot-overlay.png" alt="The WhisprCatch recording pill: a small dark capsule with a red recording dot, the word Listening, and animated level bars" loading="lazy">
+          </div>
+          <figcaption><b>The pill</b> — the only UI you see while dictating.</figcaption>
+        </figure>
+      </div>
     </div>
   </section>
 
-  <footer>
-    <div>MIT © 2026 Aviroop Paul</div>
-    <div><a href="https://github.com/AviroopPaul/whisper-catch">github.com/AviroopPaul/whisper-catch</a></div>
-  </footer>
-</div>
+  <!-- ================= FAQ ================= -->
+  <section id="faq">
+    <div class="wrap">
+      <p class="eyebrow">FAQ</p>
+      <h2>Questions</h2>
+      <div class="faq-list">
+        <details class="faq">
+          <summary>Does it work offline?</summary>
+          <p class="answer">Yes — completely. The speech model runs on your CPU via ONNX Runtime, and dictation makes zero network calls. The only download ever is the ~660 MB model, once, during setup. Verify it yourself: the code is open, or watch the process with a network monitor while you dictate.</p>
+        </details>
+        <details class="faq">
+          <summary>Which languages does it support?</summary>
+          <p class="answer">English today. The bundled model, NVIDIA Parakeet 0.6B, outperforms Whisper large-v3 on English benchmarks at a fraction of the size. Additional languages are on the roadmap as strong local models become available.</p>
+        </details>
+        <details class="faq">
+          <summary>Wayland or X11?</summary>
+          <p class="answer">X11 today — text injection and the global hotkey use X11 APIs. On GNOME you can pick "Ubuntu on Xorg" at the login screen. Wayland support is planned.</p>
+        </details>
+        <details class="faq">
+          <summary>What about macOS or Windows?</summary>
+          <p class="answer">Linux only for now (Ubuntu/Debian, x86-64). A macOS build is planned. If you want it sooner, say so in a <a href="https://github.com/AviroopPaul/whisper-catch/issues">GitHub issue</a> — it helps set priorities.</p>
+        </details>
+        <details class="faq">
+          <summary>Is it open source?</summary>
+          <p class="answer">Yes — MIT licensed, end to end. The hotkey listener, the audio pipeline, the model runner, the text injection: every line is on <a href="https://github.com/AviroopPaul/whisper-catch">GitHub</a> to read, audit, and fork.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p class="quirk">Built for people who think faster than they type.</p>
+    <div class="foot-row">
+      <div>MIT © 2026 Aviroop Paul</div>
+      <div>
+        <a href="https://github.com/AviroopPaul/whisper-catch">GitHub</a>
+        <a href="https://github.com/AviroopPaul/whisper-catch/issues">Issues</a>
+        <a href="https://github.com/AviroopPaul/whisper-catch/releases">Changelog</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  // Hide broken screenshot images so the placeholder frame shows cleanly.
+  document.querySelectorAll(".shot img").forEach(function (img) {
+    function drop() { img.remove(); }
+    img.addEventListener("error", drop);
+    if (img.complete && img.naturalWidth === 0) drop();
+  });
+
+  // ---- Dictation demo ----
+  var textEl  = document.getElementById("demo-text");
+  var caretEl = document.getElementById("demo-caret");
+  var pillEl  = document.getElementById("demo-pill");
+  var metaEl  = document.getElementById("demo-meta");
+  var keyEl   = document.getElementById("demo-key");
+  var hintEl  = document.getElementById("demo-hint-label");
+  if (!textEl || !pillEl) return;
+
+  var takes = [
+    { text: "And so, my fellow Americans: ask not what your country can do for you — ask what you can do for your country.",
+      audio: "8.2s", infer: "0.31s" },
+    { text: "Push the fix to main and tag the release. I'll write the changelog after standup.",
+      audio: "5.6s", infer: "0.22s" },
+    { text: "Remind me to renew the domain on Friday, and add oat milk to the grocery list.",
+      audio: "4.9s", infer: "0.19s" }
+  ];
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduced) {
+    // Static final frame: transcribed text plus timing line, no animation.
+    textEl.textContent = takes[0].text;
+    metaEl.textContent = takes[0].audio + " audio → " + takes[0].infer + " inference";
+    metaEl.classList.add("show");
+    caretEl.style.display = "none";
+    return;
+  }
+
+  var idx = 0;
+  var timers = [];
+  function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
+
+  function setPlaceholder() {
+    textEl.innerHTML = "<span class=\"placeholder\">Click into any text field…</span>";
+  }
+
+  function run() {
+    var take = takes[idx];
+    idx = (idx + 1) % takes.length;
+
+    // 0. reset
+    setPlaceholder();
+    metaEl.classList.remove("show");
+    pillEl.classList.remove("show");
+    keyEl.classList.remove("pressed");
+    hintEl.textContent = "hold to talk";
+
+    // 1. key goes down, pill appears, user "speaks"
+    later(function () {
+      keyEl.classList.add("pressed");
+      pillEl.classList.add("show");
+      hintEl.textContent = "listening…";
+    }, 900);
+
+    // 2. key released, pill leaves
+    later(function () {
+      keyEl.classList.remove("pressed");
+      pillEl.classList.remove("show");
+      hintEl.textContent = "transcribing…";
+    }, 3700);
+
+    // 3. text types itself in, fast — this is injection, not human typing
+    later(function () {
+      textEl.textContent = "";
+      var i = 0;
+      (function type() {
+        if (i <= take.text.length) {
+          textEl.textContent = take.text.slice(0, i);
+          i += 1;
+          timers.push(setTimeout(type, 13 + Math.random() * 14));
+        } else {
+          metaEl.textContent = take.audio + " audio → " + take.infer + " inference";
+          metaEl.classList.add("show");
+          hintEl.textContent = "hold to talk";
+        }
+      })();
+    }, 4050);
+
+    // 4. hold the frame, then loop  (typing ~ text.length * 20ms after 4050)
+    var typeMs = take.text.length * 22;
+    later(run, 4050 + typeMs + 4200);
+  }
+
+  // Pause the loop when the tab is hidden so it never desyncs.
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) {
+      timers.forEach(clearTimeout);
+      timers = [];
+    } else if (timers.length === 0) {
+      run();
+    }
+  });
+
+  run();
+})();
+</script>
+
 </body>
 </html>

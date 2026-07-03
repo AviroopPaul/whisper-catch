@@ -22,7 +22,7 @@ pub fn enable() -> Result<()> {
              Name=WhisprCatch\n\
              Comment=Local push-to-talk dictation\n\
              Exec={} ptt\n\
-             Icon=audio-input-microphone\n\
+             Icon=whisper-catch\n\
              Terminal=false\n\
              X-GNOME-Autostart-enabled=true\n",
             exe.display()

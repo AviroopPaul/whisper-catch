@@ -1,5 +1,7 @@
-//! First-run setup wizard: keyboard permission (via polkit, no terminal)
-//! and model download with a progress bar. Runs before the daemon starts.
+//! First-run setup wizard: Welcome → keyboard permission (via polkit, no
+//! terminal) → model download with progress → Done. Runs before the daemon
+//! starts. Fixed-size centered window, one accent action per screen; the
+//! window itself is the card — whitespace does the work.
 
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
@@ -17,6 +19,7 @@ pub enum Outcome {
 }
 
 enum Step {
+    Welcome,
     Permission {
         granting: bool,
         rx: Option<Receiver<Result<(), String>>>,
@@ -52,7 +55,8 @@ pub fn run(theme_pref: &str) -> Result<Outcome> {
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([460.0, 360.0])
+            .with_inner_size([520.0, 560.0])
+            .with_min_inner_size([520.0, 560.0])
             .with_resizable(false),
         centered: true,
         ..Default::default()
@@ -79,16 +83,10 @@ struct Wizard {
 
 impl Wizard {
     fn new(outcome: Arc<Mutex<Outcome>>) -> Self {
-        let step = if !wc_hotkey::keyboard_accessible() {
-            Step::Permission {
-                granting: false,
-                rx: None,
-                error: None,
-            }
-        } else {
-            Step::first_download()
-        };
-        Self { step, outcome }
+        Self {
+            step: Step::Welcome,
+            outcome,
+        }
     }
 }
 
@@ -105,6 +103,15 @@ impl Step {
                 total: wc_models::PARAKEET_V2_INT8.total_size(),
                 error: None,
             }
+        }
+    }
+
+    fn index(&self) -> usize {
+        match self {
+            Step::Welcome => 0,
+            Step::Permission { .. } => 1,
+            Step::Download { .. } => 2,
+            Step::Done => 3,
         }
     }
 }
@@ -132,6 +139,250 @@ if [ -e /dev/uinput ]; then setfacl -m "u:$1:rw" /dev/uinput 2>/dev/null || true
     }
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Painted UI pieces (no icon fonts needed; crisp at any DPI, light + dark).
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Copy)]
+enum StepIcon {
+    Mic,
+    Keyboard,
+    Download,
+    Check,
+}
+
+/// Accent at ~10% alpha — chip/plate tint per the design brief.
+fn accent_subtle(ui: &egui::Ui) -> egui::Color32 {
+    let a = theme::accent(ui);
+    let alpha = if ui.visuals().dark_mode { 26 } else { 20 };
+    egui::Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), alpha)
+}
+
+/// 48px stroke icon in accent, centered on a 72px accent-subtle circle plate.
+fn icon_plate(ui: &mut egui::Ui, icon: StepIcon) {
+    let accent = theme::accent(ui);
+    let plate = accent_subtle(ui);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(72.0, 72.0), egui::Sense::hover());
+    let c = rect.center();
+    let p = ui.painter();
+    p.circle_filled(c, 36.0, plate);
+    let s = egui::Stroke::new(2.5, accent);
+    match icon {
+        StepIcon::Mic => {
+            // capsule body
+            p.rect_stroke(
+                egui::Rect::from_center_size(egui::pos2(c.x, c.y - 6.0), egui::vec2(13.0, 22.0)),
+                egui::CornerRadius::same(6),
+                s,
+                egui::StrokeKind::Middle,
+            );
+            // holder arc
+            let arc: Vec<egui::Pos2> = (0..=24)
+                .map(|i| {
+                    let t = std::f32::consts::PI * i as f32 / 24.0;
+                    egui::pos2(c.x + 12.5 * t.cos(), (c.y - 2.0) + 12.5 * t.sin())
+                })
+                .collect();
+            p.add(egui::Shape::line(arc, s));
+            // stem + base
+            p.line_segment([egui::pos2(c.x, c.y + 10.5), egui::pos2(c.x, c.y + 16.0)], s);
+            p.line_segment(
+                [egui::pos2(c.x - 7.0, c.y + 16.0), egui::pos2(c.x + 7.0, c.y + 16.0)],
+                s,
+            );
+        }
+        StepIcon::Keyboard => {
+            p.rect_stroke(
+                egui::Rect::from_center_size(c, egui::vec2(38.0, 26.0)),
+                egui::CornerRadius::same(5),
+                egui::Stroke::new(2.0, accent),
+                egui::StrokeKind::Middle,
+            );
+            for y in [-6.0_f32, 0.0] {
+                for k in -2..=2_i32 {
+                    p.circle_filled(egui::pos2(c.x + k as f32 * 6.0, c.y + y), 1.5, accent);
+                }
+            }
+            // space bar
+            p.line_segment(
+                [egui::pos2(c.x - 8.0, c.y + 6.5), egui::pos2(c.x + 8.0, c.y + 6.5)],
+                egui::Stroke::new(2.5, accent),
+            );
+        }
+        StepIcon::Download => {
+            // arrow
+            p.line_segment([egui::pos2(c.x, c.y - 15.0), egui::pos2(c.x, c.y + 3.0)], s);
+            p.add(egui::Shape::line(
+                vec![
+                    egui::pos2(c.x - 7.0, c.y - 4.0),
+                    egui::pos2(c.x, c.y + 3.5),
+                    egui::pos2(c.x + 7.0, c.y - 4.0),
+                ],
+                s,
+            ));
+            // tray
+            p.add(egui::Shape::line(
+                vec![
+                    egui::pos2(c.x - 13.0, c.y + 8.0),
+                    egui::pos2(c.x - 13.0, c.y + 14.0),
+                    egui::pos2(c.x + 13.0, c.y + 14.0),
+                    egui::pos2(c.x + 13.0, c.y + 8.0),
+                ],
+                s,
+            ));
+        }
+        StepIcon::Check => {
+            p.circle_stroke(c, 16.0, s);
+            p.add(egui::Shape::line(
+                vec![
+                    egui::pos2(c.x - 7.5, c.y + 0.5),
+                    egui::pos2(c.x - 2.5, c.y + 6.0),
+                    egui::pos2(c.x + 8.0, c.y - 5.5),
+                ],
+                egui::Stroke::new(3.0, accent),
+            ));
+        }
+    }
+}
+
+/// Four 8px dots: done = accent fill, current = accent ring, upcoming = border.
+fn step_dots(ui: &mut egui::Ui, current: usize) {
+    let accent = theme::accent(ui);
+    let upcoming = ui.visuals().widgets.noninteractive.bg_stroke.color;
+    let n = 4;
+    let r = 4.0;
+    let gap = 12.0;
+    let w = n as f32 * 2.0 * r + (n - 1) as f32 * gap;
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, 2.0 * r + 4.0), egui::Sense::hover());
+    let p = ui.painter();
+    for i in 0..n {
+        let c = egui::pos2(
+            rect.left() + r + i as f32 * (2.0 * r + gap),
+            rect.center().y,
+        );
+        if i < current {
+            p.circle_filled(c, r, accent);
+        } else if i == current {
+            p.circle_stroke(c, r + 0.5, egui::Stroke::new(1.5, accent));
+        } else {
+            p.circle_filled(c, r, upcoming);
+        }
+    }
+}
+
+/// Centered column for step copy — max 380px so lines stay readable.
+fn step_body(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui)) {
+    let w = ui.available_width().min(380.0);
+    ui.allocate_ui_with_layout(
+        egui::vec2(w, 0.0),
+        egui::Layout::top_down(egui::Align::Center),
+        add,
+    );
+}
+
+/// The one accent-filled button per screen.
+fn primary_button(ui: &mut egui::Ui, text: &str, min: egui::Vec2) -> egui::Response {
+    let accent = theme::accent(ui);
+    let on_accent = if ui.visuals().dark_mode {
+        egui::Color32::from_rgb(4, 47, 44)
+    } else {
+        egui::Color32::WHITE
+    };
+    ui.add(
+        egui::Button::new(egui::RichText::new(text).strong().color(on_accent))
+            .fill(accent)
+            .stroke(egui::Stroke::NONE)
+            .min_size(min),
+    )
+}
+
+/// Small accent-subtle pill with accent text (welcome privacy line).
+fn accent_chip(ui: &mut egui::Ui, text: &str) {
+    let accent = theme::accent(ui);
+    let bg = accent_subtle(ui);
+    egui::Frame::default()
+        .fill(bg)
+        .corner_radius(egui::CornerRadius::same(14))
+        .inner_margin(egui::Margin::symmetric(12, 6))
+        .show(ui, |ui| {
+            ui.label(egui::RichText::new(text).color(accent).small().strong());
+        });
+}
+
+/// Error state: tinted panel, error text, optional recovery hint.
+fn error_box(ui: &mut egui::Ui, msg: &str, hint: Option<&str>) {
+    let err = ui.visuals().error_fg_color;
+    let bg = egui::Color32::from_rgba_unmultiplied(err.r(), err.g(), err.b(), 18);
+    egui::Frame::default()
+        .fill(bg)
+        .corner_radius(egui::CornerRadius::same(8))
+        .inner_margin(12.0)
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.colored_label(err, msg);
+            if let Some(h) = hint {
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new(h).weak().small());
+            }
+        });
+}
+
+/// "Hold ⟨Right Alt⟩ and speak. Release to type." with a drawn kbd chip.
+fn hotkey_line(ui: &mut egui::Ui) {
+    let text_color = ui.visuals().text_color();
+    let strong = ui.visuals().strong_text_color();
+    let chip_fill = ui.visuals().faint_bg_color;
+    let border = ui.visuals().widgets.noninteractive.bg_stroke.color;
+    let body = egui::TextStyle::Body.resolve(ui.style());
+
+    let pre = ui
+        .fonts(|f| f.layout_no_wrap("Hold".into(), body.clone(), text_color));
+    let post = ui
+        .fonts(|f| f.layout_no_wrap("and speak. Release to type.".into(), body, text_color));
+    let key = ui.fonts(|f| f.layout_no_wrap("Right Alt".into(), egui::FontId::monospace(13.0), strong));
+
+    let pad = egui::vec2(10.0, 6.0);
+    let chip_size = key.size() + pad * 2.0;
+    let gap = 8.0;
+    let total = egui::vec2(
+        pre.size().x + gap + chip_size.x + gap + post.size().x,
+        chip_size.y + 3.0,
+    );
+    let (rect, _) = ui.allocate_exact_size(total, egui::Sense::hover());
+    let p = ui.painter();
+    let cy = rect.center().y;
+    let mut x = rect.left();
+
+    p.galley(egui::pos2(x, cy - pre.size().y / 2.0), pre.clone(), text_color);
+    x += pre.size().x + gap;
+
+    let chip = egui::Rect::from_min_size(
+        egui::pos2(x, cy - chip_size.y / 2.0 - 1.0),
+        chip_size,
+    );
+    p.rect_filled(chip, egui::CornerRadius::same(6), chip_fill);
+    p.rect_stroke(
+        chip,
+        egui::CornerRadius::same(6),
+        egui::Stroke::new(1.0, border),
+        egui::StrokeKind::Inside,
+    );
+    // the "key" bottom edge
+    p.line_segment(
+        [
+            egui::pos2(chip.left() + 5.0, chip.bottom() + 1.5),
+            egui::pos2(chip.right() - 5.0, chip.bottom() + 1.5),
+        ],
+        egui::Stroke::new(2.0, border),
+    );
+    p.galley(chip.min + pad, key, strong);
+    x += chip_size.x + gap;
+
+    p.galley(egui::pos2(x, cy - post.size().y / 2.0), post, text_color);
+}
+
+// ---------------------------------------------------------------------------
 
 impl eframe::App for Wizard {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -169,40 +420,53 @@ impl eframe::App for Wizard {
                     self.step = Step::Done;
                 }
             }
-            Step::Done => {}
+            _ => {}
         }
         if advance_to_download {
             self.step = Step::first_download();
         }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.add_space(10.0);
-            ui.vertical_centered(|ui| {
-                ui.heading("WhisprCatch");
-                ui.label(egui::RichText::new("one-time setup").weak());
-            });
-            ui.add_space(14.0);
+        let step_idx = self.step.index();
+        let panel_fill = ctx.style().visuals.panel_fill;
+        let mut next: Option<Step> = None;
 
-            match &mut self.step {
-                Step::Permission { granting, rx, error } => {
-                    theme::card(ui).show(ui, |ui| {
-                        ui.set_width(ui.available_width());
-                        ui.label(egui::RichText::new("Step 1 of 2 — keyboard access").strong());
-                        ui.add_space(4.0);
-                        ui.label(
-                            "To notice when you hold the dictation key, the app needs \
-                             permission to read your keyboard. You'll be asked for your \
-                             password once.",
-                        );
-                        ui.add_space(10.0);
-                        if *granting {
-                            ui.horizontal(|ui| {
-                                ui.spinner();
-                                ui.label("waiting for authorization…");
+        // pinned action area — buttons live at a stable position near the bottom
+        egui::TopBottomPanel::bottom("wizard-actions")
+            .show_separator_line(false)
+            .frame(
+                egui::Frame::default()
+                    .fill(panel_fill)
+                    .inner_margin(egui::Margin { left: 24, right: 24, top: 8, bottom: 40 }),
+            )
+            .show(ctx, |ui| {
+                ui.set_min_height(48.0);
+                ui.vertical_centered(|ui| match &mut self.step {
+                    Step::Welcome => {
+                        if primary_button(ui, "Get started", egui::vec2(220.0, 40.0)).clicked() {
+                            next = Some(if wc_hotkey::keyboard_accessible() {
+                                Step::first_download()
+                            } else {
+                                Step::Permission {
+                                    granting: false,
+                                    rx: None,
+                                    error: None,
+                                }
                             });
-                        } else if ui
-                            .button(egui::RichText::new("Grant keyboard access…").strong())
-                            .clicked()
+                        }
+                    }
+                    Step::Permission { granting, rx, error } => {
+                        if *granting {
+                            ui.add(egui::Spinner::new().size(20.0).color(theme::accent(ui)));
+                            ui.add_space(4.0);
+                            ui.label(
+                                egui::RichText::new("Waiting for authorization…").weak().small(),
+                            );
+                        } else if primary_button(
+                            ui,
+                            "Grant keyboard access…",
+                            egui::vec2(240.0, 40.0),
+                        )
+                        .clicked()
                         {
                             let (tx, r) = mpsc::channel();
                             *rx = Some(r);
@@ -214,100 +478,222 @@ impl eframe::App for Wizard {
                                 ctx2.request_repaint();
                             });
                         }
-                        if let Some(e) = error {
-                            ui.add_space(6.0);
-                            ui.colored_label(ui.visuals().error_fg_color, e.as_str());
-                        }
-                    });
-                    ctx.request_repaint_after(std::time::Duration::from_millis(250));
-                }
-                Step::Download { started, rx, file, done, total, error } => {
-                    theme::card(ui).show(ui, |ui| {
-                        ui.set_width(ui.available_width());
-                        ui.label(egui::RichText::new("Step 2 of 2 — speech model").strong());
-                        ui.add_space(4.0);
+                    }
+                    Step::Download { .. } => {
+                        ui.add_space(12.0);
                         ui.label(
-                            "Downloading the on-device speech model (~660 MB, one time). \
-                             Everything runs locally — audio never leaves this machine.",
-                        );
-                        ui.add_space(10.0);
-                        if !*started {
-                            *started = true;
-                            let (tx, r) = mpsc::channel();
-                            *rx = Some(r);
-                            let ctx2 = ui.ctx().clone();
-                            std::thread::spawn(move || {
-                                let res = wc_models::PARAKEET_V2_INT8.ensure_with(
-                                    &wc_core::models_dir(),
-                                    &|f, d, t| {
-                                        let _ = tx.send(DlMsg::Progress {
-                                            file: f.to_string(),
-                                            done: d,
-                                            total: t,
-                                        });
-                                        ctx2.request_repaint();
-                                    },
-                                );
-                                let _ = tx.send(match res {
-                                    Ok(_) => DlMsg::Finished,
-                                    Err(e) => DlMsg::Failed(format!("{e:#}")),
-                                });
-                                ctx2.request_repaint();
-                            });
-                        }
-                        let frac = if *total > 0 {
-                            *done as f32 / *total as f32
-                        } else {
-                            0.0
-                        };
-                        ui.add(egui::ProgressBar::new(frac).show_percentage().animate(true));
-                        ui.label(
-                            egui::RichText::new(format!(
-                                "{:.0} / {:.0} MB — {}",
-                                *done as f64 / 1e6,
-                                *total as f64 / 1e6,
-                                if file.is_empty() { "starting…" } else { file.as_str() }
-                            ))
+                            egui::RichText::new(
+                                "This happens once — later launches start straight away.",
+                            )
                             .weak()
                             .small(),
                         );
-                        if let Some(e) = error {
-                            ui.add_space(6.0);
-                            ui.colored_label(ui.visuals().error_fg_color, e.as_str());
-                            ui.label(
-                                egui::RichText::new(
-                                    "Downloads resume where they left off — close and reopen \
-                                     the app to retry.",
-                                )
-                                .weak()
-                                .small(),
-                            );
-                        }
-                    });
-                    ctx.request_repaint_after(std::time::Duration::from_millis(250));
-                }
-                Step::Done => {
-                    theme::card(ui).show(ui, |ui| {
-                        ui.set_width(ui.available_width());
-                        ui.label(egui::RichText::new("All set").strong());
-                        ui.add_space(4.0);
-                        ui.label(
-                            "Hold Right Alt, speak, release — your words are typed into \
-                             whatever has focus. Find stats, history and settings in the \
-                             tray icon.",
-                        );
-                        ui.add_space(12.0);
-                        if ui
-                            .button(egui::RichText::new("Start dictating").strong())
-                            .clicked()
+                    }
+                    Step::Done => {
+                        if primary_button(ui, "Start dictating", egui::vec2(220.0, 44.0)).clicked()
                         {
                             *self.outcome.lock().unwrap() = Outcome::Ready;
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
-                    });
-                }
+                    }
+                });
+            });
+
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame::default()
+                    .fill(panel_fill)
+                    .inner_margin(egui::Margin::symmetric(24, 0)),
+            )
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(32.0);
+                    step_dots(ui, step_idx);
+                    ui.add_space(10.0);
+                    ui.label(
+                        egui::RichText::new(format!("Step {} of 4", step_idx + 1))
+                            .weak()
+                            .small(),
+                    );
+                    ui.add_space(24.0);
+                    let icon = match &self.step {
+                        Step::Welcome => StepIcon::Mic,
+                        Step::Permission { .. } => StepIcon::Keyboard,
+                        Step::Download { .. } => StepIcon::Download,
+                        Step::Done => StepIcon::Check,
+                    };
+                    icon_plate(ui, icon);
+                    ui.add_space(24.0);
+
+                    match &mut self.step {
+                        Step::Welcome => {
+                            ui.label(
+                                egui::RichText::new("Welcome to WhisprCatch").size(26.0).strong(),
+                            );
+                            ui.add_space(12.0);
+                            step_body(ui, |ui| {
+                                ui.label(
+                                    "Push-to-talk dictation for your Linux desktop. \
+                                     Hold a key, speak, and your words are typed wherever \
+                                     your cursor is.",
+                                );
+                            });
+                            ui.add_space(16.0);
+                            accent_chip(ui, "Everything stays on this device");
+                            ui.add_space(16.0);
+                            step_body(ui, |ui| {
+                                ui.label(
+                                    egui::RichText::new(
+                                        "Two quick steps: keyboard access, then the speech \
+                                         model. You won't see this window again.",
+                                    )
+                                    .weak()
+                                    .small(),
+                                );
+                            });
+                        }
+                        Step::Permission { error, .. } => {
+                            ui.label(egui::RichText::new("Keyboard access").size(26.0).strong());
+                            ui.add_space(12.0);
+                            step_body(ui, |ui| {
+                                ui.label(
+                                    "To notice when you hold the dictation key, WhisprCatch \
+                                     needs permission to read your keyboard. You'll be asked \
+                                     for your password once.",
+                                );
+                            });
+                            if let Some(e) = error {
+                                ui.add_space(16.0);
+                                let msg = e.clone();
+                                step_body(ui, |ui| {
+                                    error_box(
+                                        ui,
+                                        &msg,
+                                        Some("Nothing was changed — you can try again below."),
+                                    );
+                                });
+                            }
+                        }
+                        Step::Download { started, rx, file, done, total, error } => {
+                            if !*started {
+                                *started = true;
+                                let (tx, r) = mpsc::channel();
+                                *rx = Some(r);
+                                let ctx2 = ui.ctx().clone();
+                                std::thread::spawn(move || {
+                                    let res = wc_models::PARAKEET_V2_INT8.ensure_with(
+                                        &wc_core::models_dir(),
+                                        &|f, d, t| {
+                                            let _ = tx.send(DlMsg::Progress {
+                                                file: f.to_string(),
+                                                done: d,
+                                                total: t,
+                                            });
+                                            ctx2.request_repaint();
+                                        },
+                                    );
+                                    let _ = tx.send(match res {
+                                        Ok(_) => DlMsg::Finished,
+                                        Err(e) => DlMsg::Failed(format!("{e:#}")),
+                                    });
+                                    ctx2.request_repaint();
+                                });
+                            }
+                            ui.label(egui::RichText::new("Speech model").size(26.0).strong());
+                            ui.add_space(12.0);
+                            step_body(ui, |ui| {
+                                ui.label(
+                                    "Downloading the on-device speech model — about 660 MB, \
+                                     one time. Everything runs locally; audio never leaves \
+                                     this machine.",
+                                );
+                            });
+                            ui.add_space(24.0);
+                            let frac = if *total > 0 {
+                                *done as f32 / *total as f32
+                            } else {
+                                0.0
+                            };
+                            let mb_line = format!(
+                                "{:.0}%  ·  {:.0} / {:.0} MB — {}",
+                                frac * 100.0,
+                                *done as f64 / 1e6,
+                                *total as f64 / 1e6,
+                                if file.is_empty() { "preparing…" } else { file.as_str() }
+                            );
+                            let err = error.clone();
+                            step_body(ui, |ui| {
+                                ui.add(
+                                    egui::ProgressBar::new(frac)
+                                        .desired_height(10.0)
+                                        .fill(theme::accent(ui))
+                                        .animate(err.is_none()),
+                                );
+                                ui.add_space(8.0);
+                                ui.label(egui::RichText::new(mb_line).weak().small());
+                                if let Some(e) = err {
+                                    ui.add_space(16.0);
+                                    error_box(
+                                        ui,
+                                        &e,
+                                        Some(
+                                            "Downloads resume where they left off — close and \
+                                             reopen the app to retry.",
+                                        ),
+                                    );
+                                }
+                            });
+                        }
+                        Step::Done => {
+                            ui.label(egui::RichText::new("You're all set.").size(26.0).strong());
+                            ui.add_space(16.0);
+                            hotkey_line(ui);
+                            ui.add_space(20.0);
+                            let accent = theme::accent(ui);
+                            ui.allocate_ui_with_layout(
+                                egui::vec2(300.0, 0.0),
+                                egui::Layout::top_down(egui::Align::Min),
+                                |ui| {
+                                    ui.spacing_mut().item_spacing.y = 8.0;
+                                    for line in [
+                                        "Text lands wherever your cursor is.",
+                                        "A small pill shows while it listens.",
+                                        "History and settings live in the tray.",
+                                    ] {
+                                        ui.horizontal(|ui| {
+                                            ui.label(
+                                                egui::RichText::new("•").color(accent).strong(),
+                                            );
+                                            ui.label(line);
+                                        });
+                                    }
+                                },
+                            );
+                            ui.add_space(20.0);
+                            ui.label(
+                                egui::RichText::new(
+                                    "Built for people who think faster than they type.",
+                                )
+                                .weak()
+                                .small()
+                                .italics(),
+                            );
+                        }
+                    }
+                });
+            });
+
+        if let Some(s) = next {
+            self.step = s;
+            ctx.request_repaint();
+        }
+
+        match &self.step {
+            Step::Permission { .. } | Step::Download { .. } => {
+                ctx.request_repaint_after(std::time::Duration::from_millis(250));
             }
-        });
+            _ => {}
+        }
     }
 }
 
@@ -317,7 +703,7 @@ pub fn error_window(message: &str, theme_pref: &str) {
     let pref = theme_pref.to_string();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([440.0, 220.0])
+            .with_inner_size([460.0, 240.0])
             .with_resizable(false),
         centered: true,
         ..Default::default()
@@ -338,15 +724,23 @@ struct ErrorApp {
 
 impl eframe::App for ErrorApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.add_space(8.0);
-            ui.heading("Something went wrong");
-            ui.add_space(8.0);
-            ui.label(&self.msg);
-            ui.add_space(12.0);
-            if ui.button("Close").clicked() {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            }
-        });
+        let panel_fill = ctx.style().visuals.panel_fill;
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame::default()
+                    .fill(panel_fill)
+                    .inner_margin(egui::Margin::same(20)),
+            )
+            .show(ctx, |ui| {
+                ui.label(egui::RichText::new("Something went wrong").size(17.0).strong());
+                ui.add_space(8.0);
+                egui::ScrollArea::vertical().max_height(120.0).show(ui, |ui| {
+                    ui.label(&self.msg);
+                });
+                ui.add_space(12.0);
+                if ui.button("Close").clicked() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            });
     }
 }
