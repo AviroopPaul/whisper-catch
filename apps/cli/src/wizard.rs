@@ -58,7 +58,7 @@ pub fn run(theme_pref: &str) -> Result<Outcome> {
         ..Default::default()
     };
     eframe::run_native(
-        "whisper-catch setup",
+        "WhisprCatch Setup",
         options,
         Box::new(move |cc| {
             theme::apply(&cc.egui_ctx, &pref);
@@ -178,7 +178,7 @@ impl eframe::App for Wizard {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.add_space(10.0);
             ui.vertical_centered(|ui| {
-                ui.heading("whisper-catch");
+                ui.heading("WhisprCatch");
                 ui.label(egui::RichText::new("one-time setup").weak());
             });
             ui.add_space(14.0);
@@ -323,7 +323,7 @@ pub fn error_window(message: &str, theme_pref: &str) {
         ..Default::default()
     };
     let _ = eframe::run_native(
-        "whisper-catch — error",
+        "WhisprCatch — error",
         options,
         Box::new(move |cc| {
             theme::apply(&cc.egui_ctx, &pref);

@@ -4383,7 +4383,7 @@ dependencies = [
 
 [[package]]
 name = "wc-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "cpal",
@@ -4398,7 +4398,7 @@ dependencies = [
 
 [[package]]
 name = "wc-hotkey"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "evdev",
@@ -4407,16 +4407,17 @@ dependencies = [
 
 [[package]]
 name = "wc-inject"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "enigo",
  "log",
+ "x11rb",
 ]
 
 [[package]]
 name = "wc-models"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "hex",
@@ -4427,7 +4428,7 @@ dependencies = [
 
 [[package]]
 name = "wc-tray"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "ksni",
@@ -4600,7 +4601,7 @@ dependencies = [
 
 [[package]]
 name = "whisper-catch"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",

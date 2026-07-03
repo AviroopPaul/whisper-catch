@@ -14,6 +14,10 @@ pub struct Config {
     pub history: bool,
     /// UI theme: system, light, dark
     pub theme: String,
+    /// Type words live while speaking instead of all at once on release
+    pub streaming: bool,
+    /// Show the floating recording indicator while dictating
+    pub overlay: bool,
 }
 
 impl Default for Config {
@@ -23,6 +27,8 @@ impl Default for Config {
             model_dir: None,
             history: true,
             theme: "system".into(),
+            streaming: true,
+            overlay: true,
         }
     }
 }

@@ -16,10 +16,11 @@ struct Inner {
     active: Option<Vec<f32>>,
 }
 
-/// Warm microphone capture: the stream runs for the daemon's lifetime,
-/// feeding a small pre-roll ring. `begin()`/`end()` bracket an utterance.
+/// Microphone capture with a small pre-roll ring. `begin()`/`end()` bracket
+/// an utterance. The daemon opens this on demand and drops it after a short
+/// idle window so the OS mic-in-use indicator only shows during dictation.
 /// Capture is at the device's native rate, downmixed to mono; resampling
-/// to 16 kHz happens once per utterance in `end()`.
+/// to 16 kHz happens per `snapshot()`/`end()` call.
 pub struct Capture {
     _stream: cpal::Stream,
     inner: Arc<Mutex<Inner>>,
@@ -89,6 +90,22 @@ impl Capture {
         let mut buf: Vec<f32> = inner.preroll.drain(..).collect();
         buf.reserve(self.device_rate as usize * 10);
         inner.active = Some(buf);
+    }
+
+    /// Copy of the utterance so far (16 kHz mono) without disarming —
+    /// used for rolling transcription passes while the key is held.
+    pub fn snapshot(&self) -> Result<Vec<f32>> {
+        let samples = self
+            .inner
+            .lock()
+            .unwrap()
+            .active
+            .clone()
+            .context("snapshot() without begin()")?;
+        if self.device_rate == SAMPLE_RATE {
+            return Ok(samples);
+        }
+        resample(&samples, self.device_rate, SAMPLE_RATE)
     }
 
     /// Disarms and returns the utterance as 16 kHz mono samples.

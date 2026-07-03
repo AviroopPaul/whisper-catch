@@ -40,7 +40,7 @@ pub fn run() -> Result<()> {
         ..Default::default()
     };
     eframe::run_native(
-        "whisper-catch",
+        "WhisprCatch",
         options,
         Box::new(move |cc| {
             theme::apply(&cc.egui_ctx, &pref);
@@ -91,7 +91,7 @@ impl eframe::App for App {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
-                        egui::RichText::new("whisper-catch")
+                        egui::RichText::new("WhisprCatch")
                             .heading()
                             .color(theme::accent(ui)),
                     );
@@ -240,6 +240,14 @@ impl App {
                                 ui.selectable_value(&mut self.cfg.key, k.to_string(), *label);
                             }
                         });
+                    ui.end_row();
+
+                    ui.label("Live typing");
+                    ui.checkbox(&mut self.cfg.streaming, "words appear as you speak");
+                    ui.end_row();
+
+                    ui.label("Recording indicator");
+                    ui.checkbox(&mut self.cfg.overlay, "floating pill while dictating");
                     ui.end_row();
 
                     ui.label("Keep history");

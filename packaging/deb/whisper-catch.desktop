@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=whisper-catch
+Name=WhisprCatch
 Comment=Local push-to-talk dictation
 Exec=whisper-catch ptt
 Icon=audio-input-microphone

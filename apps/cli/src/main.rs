@@ -1,5 +1,6 @@
 mod autostart;
 mod config;
+mod overlay;
 mod settings_app;
 mod theme;
 mod wizard;
@@ -52,6 +53,9 @@ enum Cmd {
     },
     /// Open the settings & history window
     Settings,
+    /// Internal: floating recording indicator (spawned by the daemon)
+    #[command(hide = true)]
+    Overlay,
     /// Download the default model without starting the daemon
     DownloadModel,
     /// Start whisper-catch automatically on login
@@ -71,6 +75,7 @@ fn main() -> Result<()> {
     // subcommands that don't need the engine
     match &cli.cmd {
         Cmd::Settings => return settings_app::run(),
+        Cmd::Overlay => return overlay::run(),
         Cmd::DownloadModel => {
             let dir = wc_models::PARAKEET_V2_INT8.ensure(&wc_core::models_dir())?;
             log::info!("model ready at {}", dir.display());
@@ -156,16 +161,18 @@ fn main() -> Result<()> {
             no_tray,
         } => {
             let key = PttKey::parse(key.as_deref().unwrap_or(&cfg.key))?;
-            let res = run_ptt(engine, key, print_only, no_tray, cfg.history);
+            let res = run_ptt(engine, key, print_only, no_tray, &cfg);
             if let Err(e) = &res {
                 if gui_session() {
-                    notify("whisper-catch stopped", &format!("{e:#}"));
+                    notify("WhisprCatch stopped", &format!("{e:#}"));
                     wizard::error_window(&format!("{e:#}"), &cfg.theme);
                 }
             }
             res?;
         }
-        Cmd::Settings | Cmd::DownloadModel | Cmd::Autostart { .. } => unreachable!(),
+        Cmd::Settings | Cmd::Overlay | Cmd::DownloadModel | Cmd::Autostart { .. } => {
+            unreachable!()
+        }
     }
     Ok(())
 }
@@ -200,12 +207,73 @@ fn acquire_instance_lock() -> Option<std::fs::File> {
     }
 }
 
+/// Close the mic this long after the last utterance — instant re-dictation
+/// within the window, and the OS mic-in-use indicator clears soon after.
+const MIC_IDLE_CLOSE: Duration = Duration::from_secs(10);
+/// Rolling transcription cadence while the key is held.
+const STREAM_INTERVAL: Duration = Duration::from_millis(1200);
+/// Words at the tail of a hypothesis we refuse to commit — the model often
+/// revises the most recent words on the next pass (LocalAgreement guard).
+const STREAM_GUARD_WORDS: usize = 2;
+
+struct OverlayProc(std::process::Child);
+
+impl OverlayProc {
+    fn spawn() -> Option<Self> {
+        let exe = std::env::current_exe().ok()?;
+        std::process::Command::new(exe)
+            .arg("overlay")
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .ok()
+            .map(Self)
+    }
+
+    fn transcribing(&mut self) {
+        if let Some(stdin) = self.0.stdin.as_mut() {
+            use std::io::Write;
+            let _ = writeln!(stdin, "t");
+        }
+    }
+
+    fn close(mut self) {
+        drop(self.0.stdin.take()); // EOF → overlay exits
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(2));
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        });
+    }
+}
+
+fn split_words(text: &str) -> Vec<String> {
+    text.split_whitespace().map(str::to_string).collect()
+}
+
+/// Words of `hyp` agreed with `prev` (common prefix), minus the guard tail.
+fn stable_prefix_len(prev: &[String], hyp: &[String]) -> usize {
+    let lcp = prev
+        .iter()
+        .zip(hyp.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
+    lcp.min(hyp.len().saturating_sub(STREAM_GUARD_WORDS))
+}
+
+fn join_delta(committed: usize, words: &[String]) -> String {
+    let mut s = words[committed..].join(" ");
+    if committed > 0 {
+        s.insert(0, ' ');
+    }
+    s
+}
+
 fn run_ptt(
     mut engine: Engine,
     key: PttKey,
     print_only: bool,
     no_tray: bool,
-    keep_history: bool,
+    cfg: &config::Config,
 ) -> Result<()> {
     let state = Arc::new(AppState::new());
     let tray = if no_tray {
@@ -225,7 +293,6 @@ fn run_ptt(
         }
     };
 
-    let capture = Capture::open()?;
     let events = wc_hotkey::listen(key)?;
     let mut injector = if print_only {
         None
@@ -235,52 +302,99 @@ fn run_ptt(
     eprintln!("ready — hold {key:?} and speak, release to type. Ctrl-C to quit.");
     if gui_session() {
         notify(
-            "whisper-catch is running",
+            "WhisprCatch is running",
             &format!("Hold {key:?} and speak — release to type. Look for the mic in the top bar."),
         );
     }
 
+    // mic is opened on demand and dropped after MIC_IDLE_CLOSE (no permanent
+    // "mic in use" indicator in the top bar)
+    let mut capture: Option<Capture> = None;
+    let mut last_use = std::time::Instant::now();
     let mut armed = false;
-    for ev in events {
-        match ev {
-            PttEvent::Pressed => {
+    let mut overlay_proc: Option<OverlayProc> = None;
+
+    // rolling-transcription state for the current utterance
+    let mut committed: Vec<String> = Vec::new();
+    let mut prev_hyp: Vec<String> = Vec::new();
+    let mut modifier_lifted = false;
+    let mut last_pass = std::time::Instant::now();
+
+    loop {
+        match events.recv_timeout(Duration::from_millis(250)) {
+            Ok(PttEvent::Pressed) => {
                 if !state.is_enabled() || armed {
                     continue;
                 }
-                capture.begin();
+                if capture.is_none() {
+                    match Capture::open() {
+                        Ok(c) => capture = Some(c),
+                        Err(e) => {
+                            log::error!("mic open failed: {e:#}");
+                            continue;
+                        }
+                    }
+                }
+                let cap = capture.as_ref().unwrap();
+                cap.begin();
                 armed = true;
+                committed.clear();
+                prev_hyp.clear();
+                modifier_lifted = false;
+                last_pass = std::time::Instant::now();
                 log::info!("recording...");
                 state.recording.store(true, Ordering::Relaxed);
+                if cfg.overlay {
+                    overlay_proc = OverlayProc::spawn();
+                }
                 refresh(&tray);
             }
-            PttEvent::Released => {
+            Ok(PttEvent::Released) => {
                 if !armed {
                     continue;
                 }
                 armed = false;
                 state.recording.store(false, Ordering::Relaxed);
                 refresh(&tray);
-                let dur = capture.armed_secs();
-                if dur < 0.3 {
-                    capture.cancel();
+                let cap = capture.as_ref().expect("armed without capture");
+                last_use = std::time::Instant::now();
+
+                let dur = cap.armed_secs();
+                if dur < 0.3 && committed.is_empty() {
+                    cap.cancel();
+                    if let Some(o) = overlay_proc.take() {
+                        o.close();
+                    }
                     log::info!("too short ({dur:.2}s), ignored");
                     continue;
                 }
-                let samples = match capture.end() {
+                if let Some(o) = overlay_proc.as_mut() {
+                    o.transcribing();
+                }
+                let samples = match cap.end() {
                     Ok(s) => s,
                     Err(e) => {
                         log::error!("audio processing failed: {e:#}");
+                        if let Some(o) = overlay_proc.take() {
+                            o.close();
+                        }
                         continue;
                     }
                 };
                 let t0 = std::time::Instant::now();
-                match engine.transcribe(&samples) {
-                    Ok(text) if text.is_empty() => log::info!("(empty transcript)"),
+                let result = engine.transcribe(&samples);
+                if let Some(o) = overlay_proc.take() {
+                    o.close();
+                }
+                match result {
+                    Ok(text) if text.is_empty() && committed.is_empty() => {
+                        log::info!("(empty transcript)")
+                    }
                     Ok(text) => {
                         let infer_s = t0.elapsed().as_secs_f32();
-                        log::info!("{dur:.1}s audio → {infer_s:.2}s inference");
+                        log::info!("{dur:.1}s audio → {infer_s:.2}s inference (final)");
                         state.record_utterance(text.split_whitespace().count(), dur);
-                        if keep_history {
+                        if cfg.history {
                             let entry = wc_core::history::Entry {
                                 ts: std::time::SystemTime::now()
                                     .duration_since(std::time::UNIX_EPOCH)
@@ -295,13 +409,21 @@ fn run_ptt(
                             }
                         }
                         refresh(&tray);
+
+                        let final_words = split_words(&text);
+                        // words already typed by rolling passes stay put; type
+                        // only what's left
+                        let start = committed.len().min(final_words.len());
                         if let Some(inj) = injector.as_mut() {
                             // let the user finish releasing the modifier so
                             // injected keys don't combine with it
                             std::thread::sleep(Duration::from_millis(150));
-                            if let Err(e) = inj.type_text(&text) {
-                                log::error!("injection failed: {e:#}");
-                                println!("{text}");
+                            if start < final_words.len() {
+                                let delta = join_delta(start, &final_words);
+                                if let Err(e) = inj.type_text(&delta) {
+                                    log::error!("injection failed: {e:#}");
+                                    println!("{text}");
+                                }
                             }
                         } else {
                             println!("{text}");
@@ -309,7 +431,55 @@ fn run_ptt(
                     }
                     Err(e) => log::error!("transcription failed: {e:#}"),
                 }
+                committed.clear();
+                prev_hyp.clear();
             }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // rolling transcription while the key is held
+                if armed
+                    && cfg.streaming
+                    && injector.is_some()
+                    && last_pass.elapsed() >= STREAM_INTERVAL
+                {
+                    last_pass = std::time::Instant::now();
+                    if let Some(cap) = capture.as_ref() {
+                        if cap.armed_secs() >= 1.0 {
+                            if let Ok(snap) = cap.snapshot() {
+                                match engine.transcribe(&snap) {
+                                    Ok(text) => {
+                                        let hyp = split_words(&text);
+                                        let stable = stable_prefix_len(&prev_hyp, &hyp);
+                                        if stable > committed.len() {
+                                            let inj = injector.as_mut().unwrap();
+                                            if !modifier_lifted {
+                                                // fake-release the held PTT key at the
+                                                // display-server level so our keystrokes
+                                                // don't become modifier+letter shortcuts
+                                                inj.lift_key(key.evdev_code());
+                                                modifier_lifted = true;
+                                            }
+                                            let delta = join_delta(committed.len(), &hyp[..stable]);
+                                            if let Err(e) = inj.type_text(&delta) {
+                                                log::error!("streaming injection failed: {e:#}");
+                                            } else {
+                                                committed = hyp[..stable].to_vec();
+                                            }
+                                        }
+                                        prev_hyp = hyp;
+                                    }
+                                    Err(e) => log::warn!("streaming pass failed: {e:#}"),
+                                }
+                            }
+                        }
+                    }
+                }
+                // release the mic after a quiet spell
+                if !armed && capture.is_some() && last_use.elapsed() >= MIC_IDLE_CLOSE {
+                    capture = None;
+                    log::info!("mic released (idle)");
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         }
     }
     Ok(())

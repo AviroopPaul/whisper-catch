@@ -19,7 +19,7 @@ pub fn enable() -> Result<()> {
         format!(
             "[Desktop Entry]\n\
              Type=Application\n\
-             Name=whisper-catch\n\
+             Name=WhisprCatch\n\
              Comment=Local push-to-talk dictation\n\
              Exec={} ptt\n\
              Icon=audio-input-microphone\n\

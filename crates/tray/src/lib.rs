@@ -33,13 +33,13 @@ mod linux {
         }
 
         fn title(&self) -> String {
-            "whisper-catch".into()
+            "WhisprCatch".into()
         }
 
         fn tool_tip(&self) -> ksni::ToolTip {
             let s = *self.state.stats.lock().unwrap();
             ksni::ToolTip {
-                title: "whisper-catch".into(),
+                title: "WhisprCatch".into(),
                 description: format!(
                     "{} words · {} utterances · {:.0}s audio",
                     s.words, s.utterances, s.audio_secs

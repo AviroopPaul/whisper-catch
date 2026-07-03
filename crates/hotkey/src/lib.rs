@@ -28,6 +28,19 @@ pub enum PttKey {
 }
 
 impl PttKey {
+    /// Kernel evdev key code (X11 keycode = this + 8).
+    pub fn evdev_code(self) -> u16 {
+        match self {
+            Self::RightCtrl => 97,
+            Self::LeftCtrl => 29,
+            Self::RightAlt => 100,
+            Self::LeftAlt => 56,
+            Self::Super => 125,
+            Self::F13 => 183,
+            Self::ScrollLock => 70,
+        }
+    }
+
     pub fn parse(s: &str) -> Result<Self> {
         Ok(match s.to_ascii_lowercase().as_str() {
             "rightctrl" | "rctrl" => Self::RightCtrl,
