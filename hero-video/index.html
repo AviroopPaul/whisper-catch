@@ -155,7 +155,8 @@
       #comp-stream .sw { display: inline; }
       #comp-final { color: #d1d2d3; position: absolute; top: 15px; left: 16px; right: 16px; }
       .caret-wrap { display: inline-block; }
-      #comp-caret, #comp-caret-2 {
+      #caret-start-wrap { position: absolute; left: 16px; top: 15px; }
+      #comp-caret-start, #comp-caret-2 {
         display: inline-block; width: 2px; height: 17px; background: #d1d2d3;
         vertical-align: text-bottom; margin-left: 1px;
         animation: blink 1.06s steps(1) 14;
@@ -327,8 +328,8 @@
               <div data-hf-id="hf-m28j" id="composer">
                 <div data-hf-id="hf-nmyz" id="comp-input">
                   <span data-hf-id="hf-5fhy" id="comp-placeholder">Message #engineering</span>
-                  <span data-hf-id="hf-9nuc" id="comp-stream"><span data-hf-id="hf-buau" class="sw">yes</span> <span data-hf-id="hf-lpy9" class="sw">pushing</span> <span data-hf-id="hf-xt8m" class="sw">the</span> <span data-hf-id="hf-kjam" class="sw">fix</span> <span data-hf-id="hf-vl59" class="sw">now</span> <span data-hf-id="hf-iqg1" class="sw">tag</span> <span data-hf-id="hf-xg0a" class="sw">the</span> <span data-hf-id="hf-u5cg" class="sw">release</span> <span data-hf-id="hf-e2z8" class="sw">and</span> <span data-hf-id="hf-xhv2" class="sw">ill</span> <span data-hf-id="hf-e6dy" class="sw">write</span> <span data-hf-id="hf-xubb" class="sw">the</span> <span data-hf-id="hf-zgnb" class="sw">changelog</span> <span data-hf-id="hf-kryj" class="sw">after</span> <span data-hf-id="hf-x0vc" class="sw">standup</span><span data-hf-id="hf-9kxp" class="caret-wrap" id="caret-wrap-1"><span data-hf-id="hf-psgp" id="comp-caret"></span></span></span>
-                  <span data-hf-id="hf-tx53" id="comp-final">Yes — pushing the fix now. Tag the release, and I'll write the changelog after standup.<span data-hf-id="hf-dj1q" class="caret-wrap" id="caret-wrap-2"><span data-hf-id="hf-bo9c" id="comp-caret-2"></span></span></span>
+                  <span data-hf-id="hf-9nuc" id="comp-stream"><span data-hf-id="hf-buau" class="sw">yes</span> <span data-hf-id="hf-lpy9" class="sw">pushing</span> <span data-hf-id="hf-xt8m" class="sw">the</span> <span data-hf-id="hf-kjam" class="sw">fix</span> <span data-hf-id="hf-vl59" class="sw">now</span> <span data-hf-id="hf-iqg1" class="sw">tag</span> <span data-hf-id="hf-xg0a" class="sw">the</span> <span data-hf-id="hf-u5cg" class="sw">release</span> <span data-hf-id="hf-e2z8" class="sw">and</span> <span data-hf-id="hf-xhv2" class="sw">ill</span> <span data-hf-id="hf-e6dy" class="sw">write</span> <span data-hf-id="hf-xubb" class="sw">the</span> <span data-hf-id="hf-zgnb" class="sw">changelog</span> <span data-hf-id="hf-kryj" class="sw">after</span> <span data-hf-id="hf-x0vc" class="sw">standup</span></span>
+                  <span data-hf-id="hf-q5qq" class="caret-wrap" id="caret-start-wrap"><span data-hf-id="hf-zz1a" id="comp-caret-start"></span></span><span data-hf-id="hf-tx53" id="comp-final">Yes — pushing the fix now. Tag the release, and I'll write the changelog after standup.<span data-hf-id="hf-dj1q" class="caret-wrap" id="caret-wrap-2"><span data-hf-id="hf-bo9c" id="comp-caret-2"></span></span></span>
                 </div>
                 <div data-hf-id="hf-ggn2" id="comp-tools">
                   <div data-hf-id="hf-htb4" class="plus"><svg data-hf-id="hf-7lsn" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path data-hf-id="hf-1zsu" d="M12 5v14M5 12h14" /></svg></div>
@@ -372,7 +373,7 @@
       /* ---------- initial states (t=0, both clips live from 0) ---------- */
       tl.set("#comp-stream", { opacity: 1 }, 0);
       tl.set(".sw", { opacity: 0, y: 6 }, 0);
-      tl.set("#caret-wrap-1", { opacity: 0 }, 0);
+      tl.set("#caret-start-wrap", { opacity: 0 }, 0);
       tl.set("#comp-final", { opacity: 0 }, 0);
       tl.set("#msg-me", { opacity: 0, y: 16 }, 0);
       tl.set("#send", { color: "#7a7d81", backgroundColor: "rgba(255,255,255,.05)" }, 0);
@@ -390,7 +391,8 @@
       tl.to("#ripple-1", { scale: 1.25, opacity: 0, duration: 0.45, ease: "power2.out" }, 1.68);
       /* focus: border + placeholder stays (empty input keeps placeholder in slack) */
       tl.to("#composer", { borderColor: "#8b8f94", duration: 0.25 }, 1.65);
-      tl.to("#caret-wrap-1", { opacity: 1, duration: 0.12 }, 1.75);
+      tl.to("#caret-start-wrap", { opacity: 1, duration: 0.12 }, 1.75);
+      tl.to("#caret-start-wrap", { opacity: 0, duration: 0.1 }, 3.18);
       /* cursor drifts out of the way */
       tl.to("#cursor", { x: 1300, y: 700, duration: 0.8, ease: "power2.inOut" }, 2.0);
 
@@ -400,6 +402,10 @@
         { opacity: 1, y: 0, scale: 1, duration: 0.45, ease: "back.out(1.6)" }, 2.75);
       /* placeholder yields to incoming words */
       tl.to("#comp-placeholder", { opacity: 0, duration: 0.2 }, 3.05);
+
+      /* ---------- camera: zoom into pill + composer while dictating ---------- */
+      tl.to(["#scene", "#overlays"], { scale: 1.4, transformOrigin: "1240px 1030px", duration: 0.9, ease: "power2.inOut" }, 2.5);
+      tl.to(["#scene", "#overlays"], { scale: 1.0, duration: 0.85, ease: "power2.inOut" }, 10.55);
 
       /* ---------- 3.2–8.3 words stream in with ASR-ish cadence ---------- */
       const gaps = [0, .55, .18, .22, .30, .75, .20, .28, .55, .30, .22, .18, .40, .45, .35];
