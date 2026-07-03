@@ -4,10 +4,7 @@ Local push-to-talk dictation for Linux (macOS planned). Hold a key, speak, relea
 
 ## Install (Ubuntu/Debian)
 
-```sh
-sudo apt install ./whisper-catch_0.1.0-1_amd64.deb
-# postinst adds you to the `input` group — log out and back in once
-```
+Download the `.deb` from [releases](https://github.com/AviroopPaul/whisper-catch/releases/latest) and install it (double-click, or `sudo apt install ./whisper-catch_amd64.deb`). Launch **whisper-catch** from your app menu — a setup wizard handles keyboard permission (polkit prompt) and the model download. No terminal needed.
 
 Or build from source: `cargo build --release -p whisper-catch` (needs `cmake clang libasound2-dev`).
 

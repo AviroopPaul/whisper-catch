@@ -52,25 +52,60 @@ pub const PARAKEET_V2_INT8: ModelSpec = ModelSpec {
 };
 
 impl ModelSpec {
+    pub fn total_size(&self) -> u64 {
+        self.files.iter().map(|f| f.size).sum()
+    }
+
+    /// True when every file is present with the right size.
+    pub fn is_complete(&self, models_root: &Path) -> bool {
+        let dir = models_root.join(self.dir_name);
+        self.files
+            .iter()
+            .all(|f| dir.join(f.name).metadata().map(|m| m.len()).ok() == Some(f.size))
+    }
+
     /// Ensures all model files exist under `models_root/<dir_name>`,
     /// downloading whatever is missing. Returns the model directory.
     pub fn ensure(&self, models_root: &Path) -> Result<PathBuf> {
+        self.ensure_with(models_root, &|_, _, _| {})
+    }
+
+    /// Like `ensure`, reporting progress as (current file, bytes done
+    /// across all files, total bytes across all files).
+    pub fn ensure_with(
+        &self,
+        models_root: &Path,
+        progress: &(dyn Fn(&str, u64, u64) + Sync),
+    ) -> Result<PathBuf> {
         let dir = models_root.join(self.dir_name);
         std::fs::create_dir_all(&dir)?;
+        let total = self.total_size();
+        let mut done_before = 0u64;
         for f in self.files {
             let dest = dir.join(f.name);
             // size check only for existing files — full hash verify happens on
             // download; a hash pass over 650MB at every startup isn't worth it
             if dest.metadata().map(|m| m.len()).ok() == Some(f.size) {
+                done_before += f.size;
+                progress(f.name, done_before, total);
                 continue;
             }
-            download(&format!("{}/{}", self.base_url, f.name), &dest, f)?;
+            let base = done_before;
+            download(&format!("{}/{}", self.base_url, f.name), &dest, f, &|d| {
+                progress(f.name, base + d, total)
+            })?;
+            done_before += f.size;
         }
         Ok(dir)
     }
 }
 
-fn download(url: &str, dest: &Path, spec: &FileSpec) -> Result<()> {
+fn download(
+    url: &str,
+    dest: &Path,
+    spec: &FileSpec,
+    progress: &(dyn Fn(u64) + Sync),
+) -> Result<()> {
     let part = dest.with_extension(
         dest.extension()
             .map(|e| format!("{}.part", e.to_string_lossy()))
@@ -133,6 +168,7 @@ fn download(url: &str, dest: &Path, spec: &FileSpec) -> Result<()> {
         hasher.update(&buf[..n]);
         out.write_all(&buf[..n])?;
         done += n as u64;
+        progress(done);
         let pct = (done * 100 / spec.size) as u32;
         if pct >= last_pct + 10 {
             log::info!("  {} — {pct}%", spec.name);

@@ -42,6 +42,22 @@ impl PttKey {
     }
 }
 
+/// True when at least one keyboard-capable input device is readable —
+/// i.e. hotkey listening will work without further permission setup.
+#[cfg(target_os = "linux")]
+pub fn keyboard_accessible() -> bool {
+    evdev::enumerate().any(|(_, d)| {
+        d.supported_keys()
+            .map(|k| k.contains(evdev::KeyCode::KEY_A))
+            .unwrap_or(false)
+    })
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn keyboard_accessible() -> bool {
+    false
+}
+
 #[cfg(target_os = "linux")]
 mod linux {
     use super::*;

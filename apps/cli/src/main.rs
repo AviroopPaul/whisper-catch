@@ -1,6 +1,8 @@
 mod autostart;
 mod config;
 mod settings_app;
+mod theme;
+mod wizard;
 
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
@@ -86,6 +88,35 @@ fn main() -> Result<()> {
         _ => {}
     }
 
+    // Ptt is the desktop-launch entry point: single-instance guard and the
+    // GUI setup wizard come before any console-style failure.
+    if let Cmd::Ptt { .. } = &cli.cmd {
+        let _lock = match acquire_instance_lock() {
+            Some(l) => l,
+            None => {
+                // already running — clicking the app icon should do something
+                // useful, so open the settings window instead
+                log::info!("daemon already running; opening settings");
+                return settings_app::run();
+            }
+        };
+        if wizard::need_setup() && cli.model.is_none() && cfg.model_dir.is_none() {
+            if gui_session() {
+                match wizard::run(&cfg.theme)? {
+                    wizard::Outcome::Ready => {}
+                    wizard::Outcome::Cancelled => return Ok(()),
+                }
+            } else if !wc_hotkey::keyboard_accessible() {
+                anyhow::bail!(
+                    "no access to input devices — run 'sudo usermod -aG input $USER' \
+                     and re-login, or launch whisper-catch from your app menu to set up graphically"
+                );
+            }
+        }
+        // leak: hold the lock for the daemon's lifetime
+        std::mem::forget(_lock);
+    }
+
     let model_dir = match cli.model.or_else(|| cfg.model_dir.clone()) {
         Some(dir) => dir, // explicit dir: user manages it, don't auto-download
         None => wc_models::PARAKEET_V2_INT8
@@ -125,11 +156,48 @@ fn main() -> Result<()> {
             no_tray,
         } => {
             let key = PttKey::parse(key.as_deref().unwrap_or(&cfg.key))?;
-            run_ptt(engine, key, print_only, no_tray, cfg.history)?;
+            let res = run_ptt(engine, key, print_only, no_tray, cfg.history);
+            if let Err(e) = &res {
+                if gui_session() {
+                    notify("whisper-catch stopped", &format!("{e:#}"));
+                    wizard::error_window(&format!("{e:#}"), &cfg.theme);
+                }
+            }
+            res?;
         }
         Cmd::Settings | Cmd::DownloadModel | Cmd::Autostart { .. } => unreachable!(),
     }
     Ok(())
+}
+
+/// No terminal attached — launched from the app menu / autostart.
+fn gui_session() -> bool {
+    use std::io::IsTerminal;
+    !std::io::stderr().is_terminal()
+}
+
+fn notify(summary: &str, body: &str) {
+    let _ = notify_rust::Notification::new()
+        .summary(summary)
+        .body(body)
+        .icon("audio-input-microphone")
+        .show();
+}
+
+/// Returns None when another daemon instance already holds the lock.
+fn acquire_instance_lock() -> Option<std::fs::File> {
+    use fs2::FileExt;
+    let dir = dirs::runtime_dir().unwrap_or_else(std::env::temp_dir);
+    let path = dir.join("whisper-catch.lock");
+    let f = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&path)
+        .ok()?;
+    match f.try_lock_exclusive() {
+        Ok(()) => Some(f),
+        Err(_) => None,
+    }
 }
 
 fn run_ptt(
@@ -165,6 +233,12 @@ fn run_ptt(
         Some(Injector::new()?)
     };
     eprintln!("ready — hold {key:?} and speak, release to type. Ctrl-C to quit.");
+    if gui_session() {
+        notify(
+            "whisper-catch is running",
+            &format!("Hold {key:?} and speak — release to type. Look for the mic in the top bar."),
+        );
+    }
 
     let mut armed = false;
     for ev in events {

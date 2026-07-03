@@ -12,6 +12,8 @@ pub struct Config {
     pub model_dir: Option<PathBuf>,
     /// Keep a local log of transcriptions (history.jsonl)
     pub history: bool,
+    /// UI theme: system, light, dark
+    pub theme: String,
 }
 
 impl Default for Config {
@@ -20,6 +22,7 @@ impl Default for Config {
             key: "ralt".into(),
             model_dir: None,
             history: true,
+            theme: "system".into(),
         }
     }
 }

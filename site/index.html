@@ -106,7 +106,7 @@
        No cloud, no subscription, no audio leaving your laptop.</p>
     <div class="keys">hold <kbd>Right Alt</kbd> → speak → release</div>
     <div class="cta">
-      <a class="btn btn-primary" href="https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_0.1.0-1_amd64.deb">Download .deb</a>
+      <a class="btn btn-primary" href="https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_amd64.deb">Download .deb</a>
       <a class="btn btn-ghost" href="https://github.com/AviroopPaul/whisper-catch">Build from source</a>
     </div>
     <div class="cta-note">Linux (Ubuntu/Debian, x86-64) · macOS coming soon · MIT licensed</div>
@@ -154,10 +154,12 @@ can do for you, ask what you can do for your country.</span></pre>
 
   <section class="install" id="install">
     <h2>Install</h2>
+    <p style="color:var(--muted); margin-bottom:14px;">Download the .deb, double-click to install, launch <b style="color:var(--text)">whisper-catch</b> from your app menu.
+       A setup wizard handles permissions and the model download — no terminal needed.</p>
     <div class="code">
-<span class="c"># Ubuntu / Debian</span>
-<span class="p">$</span> sudo apt install ./whisper-catch_0.1.0-1_amd64.deb
-<span class="p">$</span> whisper-catch ptt   <span class="c"># first run downloads the model (~660 MB, verified)</span>
+<span class="c"># or, the terminal way</span>
+<span class="p">$</span> sudo apt install ./whisper-catch_amd64.deb
+<span class="p">$</span> whisper-catch ptt
 <br>
 <span class="c"># or from source</span>
 <span class="p">$</span> git clone https://github.com/AviroopPaul/whisper-catch &amp;&amp; cd whisper-catch
