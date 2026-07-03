@@ -223,15 +223,6 @@
   .hero-note b { color: var(--dim); font-weight: 400; }
 
 
-  /* ---------- analytics: download clicks ---------- */
-  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-  document.querySelectorAll('a[href$=".deb"]').forEach(function (a) {
-    var where = a.closest("header") ? "header" : a.closest(".hero") ? "hero" : a.closest("#install") ? "install" : "page";
-    a.addEventListener("click", function () {
-      va("event", { name: "download_deb", data: { location: where } });
-    });
-  });
-
   /* ---------- macOS waitlist ---------- */
   .wl { margin-top: 22px; min-height: 44px; }
   .wl-trigger {
@@ -560,6 +551,15 @@
     }, { rootMargin: "0px 0px -8% 0px", threshold: 0.05 });
     revealed.forEach(function (el) { io.observe(el); });
   }
+
+  /* ---------- analytics: download clicks ---------- */
+  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  document.querySelectorAll('a[href$=".deb"]').forEach(function (a) {
+    var where = a.closest("header") ? "header" : a.closest(".hero") ? "hero" : a.closest("#install") ? "install" : "page";
+    a.addEventListener("click", function () {
+      va("event", { name: "download_deb", data: { location: where } });
+    });
+  });
 
   /* ---------- macOS waitlist ---------- */
   document.querySelectorAll("[data-wl]").forEach(function (wl) {
