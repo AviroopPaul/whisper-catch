@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>WhisprCatch hero demo — dictating into Slack on Linux</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 1920px; height: 1080px; overflow: hidden; background: #000;
+      }
+      body {
+        font-family: -apple-system, "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .mono { font-family: ui-monospace, "SF Mono", "JetBrains Mono", monospace; }
+
+      #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+      .clip { position: absolute; inset: 0; }
+
+      /* ============ desktop ============ */
+      #wallpaper {
+        position: absolute; inset: 0;
+        background:
+          radial-gradient(52% 44% at 76% 88%, rgba(45, 145, 130, .20), transparent 70%),
+          radial-gradient(46% 40% at 12% 6%, rgba(84, 56, 110, .28), transparent 72%),
+          linear-gradient(160deg, #16121e 0%, #0d1117 52%, #0a0e13 100%);
+      }
+
+      #topbar {
+        position: absolute; top: 0; left: 0; right: 0; height: 34px;
+        background: rgba(5, 5, 8, .82);
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0 14px; color: #e6e6e6; font-size: 13.5px; font-weight: 500;
+      }
+      #topbar .tb-left, #topbar .tb-right { display: flex; align-items: center; gap: 14px; width: 260px; }
+      #topbar .tb-right { justify-content: flex-end; }
+      #topbar .tb-clock { letter-spacing: .01em; }
+      #topbar svg { display: block; opacity: .92; }
+      #tb-mic { color: #5de8cd; }
+
+      #dock {
+        position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+        width: 62px; padding: 10px 0; border-radius: 16px;
+        background: rgba(8, 8, 12, .62); border: 1px solid rgba(255, 255, 255, .06);
+        display: flex; flex-direction: column; align-items: center; gap: 12px;
+      }
+      .dk { width: 42px; height: 42px; border-radius: 11px; position: relative;
+            display: flex; align-items: center; justify-content: center; }
+      .dk-files    { background: linear-gradient(150deg, #f0a63c, #d97b1f); }
+      .dk-browser  { background: radial-gradient(circle at 34% 30%, #ff9e5e, #e0552b 62%, #b23a1d); }
+      .dk-terminal { background: #2d2833; border: 1px solid rgba(255,255,255,.14); }
+      .dk-editor   { background: linear-gradient(150deg, #3b9cdf, #1f6fb0); }
+      .dk-slack    { background: #3f0e40; }
+      .dk-active::after {
+        content: ""; position: absolute; left: -13px; top: 50%; margin-top: -3px;
+        width: 5px; height: 6px; border-radius: 3px; background: #e6e6e6;
+      }
+      .dk svg { display: block; }
+
+      /* ============ slack window ============ */
+      #win {
+        position: absolute; left: 170px; top: 80px; width: 1580px; height: 920px;
+        border-radius: 12px; overflow: hidden;
+        background: #1a1d21; border: 1px solid rgba(255, 255, 255, .09);
+        box-shadow: 0 32px 90px -18px rgba(0, 0, 0, .75), 0 6px 22px rgba(0, 0, 0, .5);
+        display: flex; flex-direction: column;
+      }
+      #win-nav {
+        height: 44px; flex: none; background: #121016;
+        display: flex; align-items: center; padding: 0 14px; gap: 12px;
+      }
+      #win-nav .nav-arrows { display: flex; gap: 10px; color: #9a969e; width: 240px; align-items: center; }
+      #win-nav .search {
+        flex: 1; max-width: 620px; margin: 0 auto; height: 26px; border-radius: 6px;
+        background: rgba(255, 255, 255, .13); color: #c9c5cd;
+        font-size: 12.5px; display: flex; align-items: center; justify-content: center; gap: 7px;
+      }
+      #win-nav .nav-right { width: 240px; display: flex; justify-content: flex-end; align-items: center; gap: 14px; }
+      .wbtn { width: 12px; height: 12px; border-radius: 50%; background: #4a4550; }
+      #win-nav .me {
+        width: 26px; height: 26px; border-radius: 7px;
+        background: linear-gradient(150deg, #2dd4b8, #0d9488);
+        color: #052e2a; font-size: 12px; font-weight: 700;
+        display: flex; align-items: center; justify-content: center;
+      }
+      #win-body { flex: 1; display: flex; min-height: 0; }
+
+      #sidebar {
+        width: 260px; flex: none; background: #19161d;
+        border-right: 1px solid rgba(255, 255, 255, .06);
+        padding: 14px 0; color: #b9b3bd; font-size: 15px;
+      }
+      #sidebar .ws {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 2px 16px 14px; color: #fff; font-weight: 800; font-size: 17px;
+        border-bottom: 1px solid rgba(255, 255, 255, .07); margin-bottom: 12px;
+      }
+      #sidebar .sec { padding: 10px 16px 6px; font-size: 13px; color: #877f8c; }
+      .chan { display: flex; align-items: center; gap: 9px; padding: 5px 16px; }
+      .chan .hash { opacity: .65; font-weight: 400; width: 12px; text-align: center; }
+      .chan-active { background: #1164a3; color: #fff; }
+      .dm-dot { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid #877f8c; }
+      .dm-dot.on { background: #2bac76; border-color: #2bac76; }
+
+      #main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #1a1d21; }
+      #chan-head {
+        height: 52px; flex: none; border-bottom: 1px solid rgba(255, 255, 255, .07);
+        display: flex; align-items: center; padding: 0 22px; gap: 12px;
+      }
+      #chan-head .cname { color: #fff; font-weight: 800; font-size: 17.5px; }
+      #chan-head .ctopic { color: #9d9aa3; font-size: 13.5px; padding-left: 12px;
+        border-left: 1px solid rgba(255, 255, 255, .12); }
+      #chan-head .members {
+        margin-left: auto; display: flex; align-items: center; gap: 7px;
+        background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1);
+        border-radius: 6px; padding: 4px 10px; color: #b9b3bd; font-size: 13px;
+      }
+
+      #msgs { flex: 1; padding: 18px 26px 8px; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; }
+      #chan-intro { margin-bottom: auto; padding: 10px 2px 26px; }
+      #chan-intro .ci-title { color: #fff; font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
+      #chan-intro .ci-sub { color: #9d9aa3; font-size: 14.5px; margin-top: 10px; max-width: 640px; line-height: 1.5; }
+      #chan-intro .ci-sub b { color: #d1d2d3; font-weight: 600; }
+      .day-div { display: flex; align-items: center; gap: 14px; margin: 6px 0 14px; }
+      .day-div i { flex: 1; height: 1px; background: rgba(255, 255, 255, .09); }
+      .day-div span {
+        font-size: 12.5px; font-weight: 700; color: #d1d2d3;
+        border: 1px solid rgba(255, 255, 255, .12); border-radius: 999px; padding: 4px 12px;
+      }
+      .msg { display: flex; gap: 12px; padding: 7px 0; }
+      .avatar {
+        width: 38px; height: 38px; border-radius: 9px; flex: none;
+        color: rgba(255, 255, 255, .94); font-size: 15px; font-weight: 700;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .av-1 { background: linear-gradient(150deg, #9d6bd6, #6d3fa8); }
+      .av-2 { background: linear-gradient(150deg, #e08a3c, #b85f18); }
+      .av-me { background: linear-gradient(150deg, #2dd4b8, #0d9488); color: #052e2a; }
+      .msg .mline { min-width: 0; }
+      .msg .mhead { display: flex; align-items: baseline; gap: 8px; }
+      .msg .mname { color: #fff; font-weight: 800; font-size: 15px; }
+      .msg .mtime { color: #9d9aa3; font-size: 12px; }
+      .msg .mtext { color: #d1d2d3; font-size: 15px; line-height: 1.48; margin-top: 2px; }
+
+      #composer {
+        flex: none; margin: 6px 22px 22px;
+        border: 1px solid #565856; border-radius: 9px; background: #222529;
+        position: relative;
+      }
+      #comp-input { min-height: 52px; padding: 15px 16px 6px; font-size: 15px; line-height: 1.5; position: relative; }
+      #comp-placeholder { color: #7a7d81; position: absolute; top: 15px; left: 16px; }
+      #comp-stream { color: #9ba0a8; }
+      #comp-stream .sw { display: inline; }
+      #comp-final { color: #d1d2d3; position: absolute; top: 15px; left: 16px; right: 16px; }
+      .caret-wrap { display: inline-block; }
+      #comp-caret, #comp-caret-2 {
+        display: inline-block; width: 2px; height: 17px; background: #d1d2d3;
+        vertical-align: text-bottom; margin-left: 1px;
+        animation: blink 1.06s steps(1) 14;
+      }
+      @keyframes blink { 50% { opacity: 0; } }
+      #comp-tools {
+        display: flex; align-items: center; gap: 14px; padding: 6px 10px 8px; color: #9d9aa3;
+      }
+      #comp-tools .plus {
+        width: 24px; height: 24px; border-radius: 50%; background: rgba(255, 255, 255, .06);
+        display: flex; align-items: center; justify-content: center;
+      }
+      #comp-tools svg { display: block; }
+      #send {
+        margin-left: auto; width: 34px; height: 27px; border-radius: 6px;
+        background: rgba(255, 255, 255, .05); color: #7a7d81;
+        display: flex; align-items: center; justify-content: center;
+      }
+
+      /* ============ overlays ============ */
+      #pill {
+        position: absolute; left: 960px; top: 1008px;
+        display: inline-flex; align-items: center; gap: 11px;
+        background: rgba(13, 16, 24, .96);
+        border: 1px solid rgba(93, 232, 205, .30);
+        border-radius: 999px; padding: 12px 20px;
+        color: #e8ebf1; font-size: 15px; font-weight: 600; white-space: nowrap;
+        box-shadow: 0 14px 44px -10px rgba(0, 0, 0, .7);
+        opacity: 0;
+      }
+      #pill .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444;
+        animation: pulse 1s ease-in-out 8; }
+      @keyframes pulse { 0%, 100% { transform: scale(.8); opacity: .6; } 50% { transform: scale(1.15); opacity: 1; } }
+      #pill .plabel { position: relative; display: inline-block; min-width: 116px; }
+      #pill .pl-a { display: inline-block; }
+      #pill .pl-b { position: absolute; left: 0; top: 0; opacity: 0; color: #5de8cd; }
+      #pill .bars { display: flex; align-items: center; gap: 3px; height: 18px; }
+      #pill .bars i { display: block; width: 3px; height: 16px; border-radius: 2px; background: #5de8cd;
+        animation: level .8s ease-in-out 8; }
+      #pill .bars i:nth-child(1) { animation-delay: 0s; }
+      #pill .bars i:nth-child(2) { animation-delay: .14s; }
+      #pill .bars i:nth-child(3) { animation-delay: .28s; }
+      #pill .bars i:nth-child(4) { animation-delay: .42s; }
+      #pill .bars i:nth-child(5) { animation-delay: .56s; }
+      @keyframes level { 0%, 100% { transform: scaleY(.28); opacity: .7; } 50% { transform: scaleY(1); opacity: 1; } }
+
+
+      #statchip {
+        position: absolute; left: 960px; top: 1012px;
+        font: 500 14px/1 ui-monospace, "SF Mono", monospace; color: #5de8cd;
+        background: rgba(13, 16, 24, .94); border: 1px solid rgba(93, 232, 205, .22);
+        border-radius: 999px; padding: 11px 18px; white-space: nowrap; opacity: 0;
+      }
+      #statchip b { color: #e8ebf1; font-weight: 600; }
+
+      #cursor { position: absolute; left: 0; top: 0; width: 26px; opacity: 0; z-index: 60; }
+      .ripple {
+        position: absolute; width: 40px; height: 40px; border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, .75); opacity: 0;
+        margin: -20px 0 0 -20px; transform: scale(.3);
+      }
+      #ripple-1 { left: 700px; top: 938px; }
+      #ripple-2 { left: 1692px; top: 950px; }
+
+      #veil { position: absolute; inset: 0; background: #000; opacity: 1; z-index: 90; }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-xnzj" id="root" data-composition-id="main" data-start="0" data-duration="15.5" data-width="1920" data-height="1080">
+      <!-- ============ scene: desktop + slack ============ -->
+      <section data-hf-id="hf-mgk0" id="scene" class="clip" data-start="0" data-duration="15.5" data-track-index="1">
+        <div data-hf-id="hf-649p" id="wallpaper"></div>
+
+        <div data-hf-id="hf-ysdh" id="topbar">
+          <div data-hf-id="hf-cyyw" class="tb-left"><span data-hf-id="hf-7h4k">Activities</span></div>
+          <div data-hf-id="hf-d4d8" class="tb-clock">Jul 3&#160;&#160;20:14</div>
+          <div data-hf-id="hf-sxp3" class="tb-right">
+            <svg data-hf-id="hf-wwa3" id="tb-mic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect data-hf-id="hf-cvlk" x="9" y="2.5" width="6" height="11" rx="3" /><path data-hf-id="hf-vef1" d="M5.5 11.5a6.5 6.5 0 0 0 13 0" /><path data-hf-id="hf-6czf" d="M12 18v3.5" /></svg>
+            <svg data-hf-id="hf-inpv" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path data-hf-id="hf-orfu" d="M4.5 9.5C8.7 5.5 15.3 5.5 19.5 9.5" /><path data-hf-id="hf-sqfl" d="M7.5 13c2.6-2.4 6.4-2.4 9 0" /><circle data-hf-id="hf-jr3b" cx="12" cy="17" r="1.4" fill="currentColor" stroke="none" /></svg>
+            <svg data-hf-id="hf-0kcv" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path data-hf-id="hf-yw4d" d="M11 5 6.5 8.5H3v7h3.5L11 19z" fill="currentColor" stroke="none" /><path data-hf-id="hf-x3ms" d="M15 9.5a4.2 4.2 0 0 1 0 5" /></svg>
+            <svg data-hf-id="hf-p8qm" width="21" height="13" viewBox="0 0 28 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect data-hf-id="hf-tack" x="1" y="1.5" width="22" height="13" rx="3.5" /><rect data-hf-id="hf-gexs" x="3.4" y="3.9" width="13" height="8.2" rx="1.6" fill="currentColor" stroke="none" /><path data-hf-id="hf-lg0g" d="M25.5 5.5v5" stroke-linecap="round" stroke-width="2.4" /></svg>
+          </div>
+        </div>
+
+        <div data-hf-id="hf-3m2w" id="dock">
+          <div data-hf-id="hf-wde4" class="dk dk-files"><svg data-hf-id="hf-gx1y" width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,255,255,.92)"><path data-hf-id="hf-zo5e" d="M3 6.5A2.5 2.5 0 0 1 5.5 4h4l2 2.5h7A2.5 2.5 0 0 1 21 9v8.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" /></svg></div>
+          <div data-hf-id="hf-jzy9" class="dk dk-browser"><svg data-hf-id="hf-wbn4" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="1.8"><circle data-hf-id="hf-fdji" cx="12" cy="12" r="8.2" /><path data-hf-id="hf-t5ex" d="M4 12h16M12 4c2.6 2.2 2.6 13.8 0 16-2.6-2.2-2.6-13.8 0-16z" /></svg></div>
+          <div data-hf-id="hf-vdov" class="dk dk-terminal"><svg data-hf-id="hf-j3ha" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8be0cf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path data-hf-id="hf-7ou0" d="m6 8 4 4-4 4" /><path data-hf-id="hf-d4j0" d="M12.5 16.5H18" /></svg></div>
+          <div data-hf-id="hf-70as" class="dk dk-editor"><svg data-hf-id="hf-fxky" width="20" height="20" viewBox="0 0 24 24" fill="rgba(255,255,255,.92)"><path data-hf-id="hf-e2iv" d="M17 3 8 12l9 9 4-2V5zM3 9.5v5L8 12z" /></svg></div>
+          <div data-hf-id="hf-5q73" class="dk dk-slack dk-active">
+            <svg data-hf-id="hf-rvxa" width="22" height="22" viewBox="0 0 24 24">
+              <path data-hf-id="hf-70t3" fill="#36C5F0" d="M9.1 3.5a1.9 1.9 0 1 1 1.9 1.9H9.1zM9.1 6.9a1.9 1.9 0 0 1 1.9 1.9v4.7a1.9 1.9 0 1 1-3.8 0V8.8a1.9 1.9 0 0 1 1.9-1.9z" />
+              <path data-hf-id="hf-4ode" fill="#2EB67D" d="M20.5 9.1a1.9 1.9 0 1 1-1.9 1.9V9.1zM17.1 9.1a1.9 1.9 0 0 1-1.9 1.9H10.5a1.9 1.9 0 1 1 0-3.8h4.7a1.9 1.9 0 0 1 1.9 1.9z" />
+              <path data-hf-id="hf-mpbl" fill="#ECB22E" d="M14.9 20.5a1.9 1.9 0 1 1-1.9-1.9h1.9zM14.9 17.1a1.9 1.9 0 0 1-1.9-1.9v-4.7a1.9 1.9 0 1 1 3.8 0v4.7a1.9 1.9 0 0 1-1.9 1.9z" />
+              <path data-hf-id="hf-nhbl" fill="#E01E5A" d="M3.5 14.9a1.9 1.9 0 1 1 1.9-1.9v1.9zM6.9 14.9a1.9 1.9 0 0 1 1.9-1.9h4.7a1.9 1.9 0 1 1 0 3.8H8.8a1.9 1.9 0 0 1-1.9-1.9z" />
+            </svg>
+          </div>
+        </div>
+
+        <div data-hf-id="hf-7on1" id="win">
+          <div data-hf-id="hf-alvx" id="win-nav">
+            <div data-hf-id="hf-k6cy" class="nav-arrows">
+              <svg data-hf-id="hf-63vf" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path data-hf-id="hf-4wxd" d="m14 6-6 6 6 6" /></svg>
+              <svg data-hf-id="hf-aur6" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".45"><path data-hf-id="hf-we71" d="m10 6 6 6-6 6" /></svg>
+              <svg data-hf-id="hf-3lrn" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle data-hf-id="hf-o1fd" cx="12" cy="12" r="8.5" /><path data-hf-id="hf-ge4w" d="M12 7.5V12l3 2" /></svg>
+            </div>
+            <div data-hf-id="hf-5lbn" class="search">
+              <svg data-hf-id="hf-8brd" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle data-hf-id="hf-mu0v" cx="11" cy="11" r="6.5" /><path data-hf-id="hf-8q25" d="m20 20-3.8-3.8" /></svg>
+              Search Acme Robotics
+            </div>
+            <div data-hf-id="hf-kj32" class="nav-right">
+              <div data-hf-id="hf-e10j" class="me">AP</div>
+              <span data-hf-id="hf-h8q0" class="wbtn"></span><span data-hf-id="hf-huu8" class="wbtn"></span><span data-hf-id="hf-gnx5" class="wbtn"></span>
+            </div>
+          </div>
+          <div data-hf-id="hf-nrae" id="win-body">
+            <div data-hf-id="hf-tt77" id="sidebar">
+              <div data-hf-id="hf-mota" class="ws">
+                <span data-hf-id="hf-b584">Acme Robotics</span>
+                <svg data-hf-id="hf-yezj" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9c5cd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path data-hf-id="hf-ggqc" d="M12 4v16M4 12h16" /></svg>
+              </div>
+              <div data-hf-id="hf-e21r" class="sec">Channels</div>
+              <div data-hf-id="hf-3ks8" class="chan"><span data-hf-id="hf-jici" class="hash">#</span>general</div>
+              <div data-hf-id="hf-hlqe" class="chan"><span data-hf-id="hf-o3gm" class="hash">#</span>design</div>
+              <div data-hf-id="hf-nsd6" class="chan chan-active"><span data-hf-id="hf-ohrn" class="hash">#</span>engineering</div>
+              <div data-hf-id="hf-i7lm" class="chan"><span data-hf-id="hf-ow2o" class="hash">#</span>releases</div>
+              <div data-hf-id="hf-vgme" class="sec">Direct messages</div>
+              <div data-hf-id="hf-55e3" class="chan"><span data-hf-id="hf-n0qh" class="dm-dot on"></span>Priya Nair</div>
+              <div data-hf-id="hf-9j5w" class="chan"><span data-hf-id="hf-1vf1" class="dm-dot on"></span>Sam Kim</div>
+              <div data-hf-id="hf-465d" class="chan"><span data-hf-id="hf-veu2" class="dm-dot"></span>Dana Wolfe</div>
+            </div>
+            <div data-hf-id="hf-j156" id="main">
+              <div data-hf-id="hf-c2ck" id="chan-head">
+                <span data-hf-id="hf-a9ut" class="cname"># engineering</span>
+                <span data-hf-id="hf-6rwn" class="ctopic">ship week — v0.3.1</span>
+                <div data-hf-id="hf-rqpi" class="members">
+                  <svg data-hf-id="hf-m1nd" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle data-hf-id="hf-vdmm" cx="9" cy="8" r="3.4" /><path data-hf-id="hf-jwfw" d="M3.5 19c.8-3 3-4.6 5.5-4.6s4.7 1.6 5.5 4.6" /><path data-hf-id="hf-q8iw" d="M15.5 5.6a3.4 3.4 0 0 1 0 4.8M17.6 14.9c1.6.8 2.6 2.2 2.9 4.1" /></svg>
+                  12
+                </div>
+              </div>
+              <div data-hf-id="hf-72gr" id="msgs">
+                <div data-hf-id="hf-aadw" id="chan-intro">
+                  <div data-hf-id="hf-ubx9" class="ci-title"># engineering</div>
+                  <div data-hf-id="hf-obg7" class="ci-sub">Priya Nair created this channel on May 12. This is the very beginning of the <b data-hf-id="hf-t95l">#engineering</b> channel — ship week coordination lives here.</div>
+                </div>
+                <div data-hf-id="hf-kltc" class="day-div"><i data-hf-id="hf-wt6k"></i><span data-hf-id="hf-f8wa">Today</span><i data-hf-id="hf-zeb8"></i></div>
+                <div data-hf-id="hf-fme3" class="msg">
+                  <div data-hf-id="hf-jgo4" class="avatar av-1">PN</div>
+                  <div data-hf-id="hf-dlsv" class="mline">
+                    <div data-hf-id="hf-d53j" class="mhead"><span data-hf-id="hf-tcyc" class="mname">Priya Nair</span><span data-hf-id="hf-vn54" class="mtime">8:02 PM</span></div>
+                    <div data-hf-id="hf-ls64" class="mtext">pipeline is green again — I quarantined the flaky overlay test</div>
+                  </div>
+                </div>
+                <div data-hf-id="hf-z5gb" class="msg">
+                  <div data-hf-id="hf-3bob" class="avatar av-2">SK</div>
+                  <div data-hf-id="hf-7q5b" class="mline">
+                    <div data-hf-id="hf-ma0f" class="mhead"><span data-hf-id="hf-1rch" class="mname">Sam Kim</span><span data-hf-id="hf-nycp" class="mtime">8:07 PM</span></div>
+                    <div data-hf-id="hf-ol53" class="mtext">nice. are we still good to cut v0.3.1 today?</div>
+                  </div>
+                </div>
+                <div data-hf-id="hf-gajv" class="msg" id="msg-me">
+                  <div data-hf-id="hf-ja9m" class="avatar av-me">AP</div>
+                  <div data-hf-id="hf-7bua" class="mline">
+                    <div data-hf-id="hf-lvpe" class="mhead"><span data-hf-id="hf-vnon" class="mname">Aviroop</span><span data-hf-id="hf-ci0l" class="mtime">8:14 PM</span></div>
+                    <div data-hf-id="hf-vejn" class="mtext">Yes — pushing the fix now. Tag the release, and I'll write the changelog after standup.</div>
+                  </div>
+                </div>
+              </div>
+              <div data-hf-id="hf-m28j" id="composer">
+                <div data-hf-id="hf-nmyz" id="comp-input">
+                  <span data-hf-id="hf-5fhy" id="comp-placeholder">Message #engineering</span>
+                  <span data-hf-id="hf-9nuc" id="comp-stream"><span data-hf-id="hf-buau" class="sw">yes</span> <span data-hf-id="hf-lpy9" class="sw">pushing</span> <span data-hf-id="hf-xt8m" class="sw">the</span> <span data-hf-id="hf-kjam" class="sw">fix</span> <span data-hf-id="hf-vl59" class="sw">now</span> <span data-hf-id="hf-iqg1" class="sw">tag</span> <span data-hf-id="hf-xg0a" class="sw">the</span> <span data-hf-id="hf-u5cg" class="sw">release</span> <span data-hf-id="hf-e2z8" class="sw">and</span> <span data-hf-id="hf-xhv2" class="sw">ill</span> <span data-hf-id="hf-e6dy" class="sw">write</span> <span data-hf-id="hf-xubb" class="sw">the</span> <span data-hf-id="hf-zgnb" class="sw">changelog</span> <span data-hf-id="hf-kryj" class="sw">after</span> <span data-hf-id="hf-x0vc" class="sw">standup</span><span data-hf-id="hf-9kxp" class="caret-wrap" id="caret-wrap-1"><span data-hf-id="hf-psgp" id="comp-caret"></span></span></span>
+                  <span data-hf-id="hf-tx53" id="comp-final">Yes — pushing the fix now. Tag the release, and I'll write the changelog after standup.<span data-hf-id="hf-dj1q" class="caret-wrap" id="caret-wrap-2"><span data-hf-id="hf-bo9c" id="comp-caret-2"></span></span></span>
+                </div>
+                <div data-hf-id="hf-ggn2" id="comp-tools">
+                  <div data-hf-id="hf-htb4" class="plus"><svg data-hf-id="hf-7lsn" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path data-hf-id="hf-1zsu" d="M12 5v14M5 12h14" /></svg></div>
+                  <svg data-hf-id="hf-37gm" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path data-hf-id="hf-k78r" d="M6 4.5h9M6 12h12M6 19.5h7" /></svg>
+                  <svg data-hf-id="hf-2t5l" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle data-hf-id="hf-gcia" cx="12" cy="12" r="8.2" /><path data-hf-id="hf-nrrm" d="M8.8 14c.9 1.2 2 1.8 3.2 1.8s2.3-.6 3.2-1.8" /><circle data-hf-id="hf-iagt" cx="9.2" cy="9.8" r=".8" fill="currentColor" stroke="none" /><circle data-hf-id="hf-dahl" cx="14.8" cy="9.8" r=".8" fill="currentColor" stroke="none" /></svg>
+                  <svg data-hf-id="hf-2euk" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle data-hf-id="hf-gqtb" cx="12" cy="12" r="8.2" /><path data-hf-id="hf-02gy" d="M15.5 8.5v5a2 2 0 0 1-4 0v-4.6a3.2 3.2 0 0 1 6.4 0v4.4" /></svg>
+                  <svg data-hf-id="hf-8g9h" id="tool-mic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect data-hf-id="hf-xkgg" x="9" y="2.5" width="6" height="11" rx="3" /><path data-hf-id="hf-kgr5" d="M5.5 11.5a6.5 6.5 0 0 0 13 0" /><path data-hf-id="hf-6q63" d="M12 18v3.5" /></svg>
+                  <div data-hf-id="hf-gbnv" id="send"><svg data-hf-id="hf-avx4" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path data-hf-id="hf-0fci" d="M3.4 20.4 20.8 12 3.4 3.6l2.9 6.9 8.2 1.5-8.2 1.5z" /></svg></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ overlays ============ -->
+      <section data-hf-id="hf-nvms" id="overlays" class="clip" data-start="0" data-duration="15.5" data-track-index="2">
+        <div data-hf-id="hf-6cks" id="pill">
+          <span data-hf-id="hf-9gry" class="dot"></span>
+          <span data-hf-id="hf-qeen" class="plabel"><span data-hf-id="hf-nssu" class="pl-a" id="pl-listening">Listening</span><span data-hf-id="hf-eic6" class="pl-b" id="pl-scribing">Transcribing…</span></span>
+          <span data-hf-id="hf-41uz" class="bars"><i data-hf-id="hf-y7e5"></i><i data-hf-id="hf-ylp6"></i><i data-hf-id="hf-0l8b"></i><i data-hf-id="hf-0zjc"></i><i data-hf-id="hf-zsm9"></i></span>
+        </div>
+
+        <div data-hf-id="hf-xwvf" id="statchip">5.4s speech&#160;&#160;→&#160;&#160;<b data-hf-id="hf-ique">0.22s on-CPU</b>&#160;&#160;·&#160;&#160;0 network calls</div>
+
+        <div data-hf-id="hf-qesw" class="ripple" id="ripple-1"></div>
+        <div data-hf-id="hf-z2or" class="ripple" id="ripple-2"></div>
+
+        <svg data-hf-id="hf-ubtd" id="cursor" viewBox="0 0 24 24">
+          <path data-hf-id="hf-cwjp" d="M5.5 3.2 19 12.6l-6.2 1.1 3.4 6.1-2.9 1.6-3.4-6.1-4.4 4.4z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round" />
+        </svg>
+
+        <div data-hf-id="hf-fqxx" id="veil"></div>
+      </section>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      /* ---------- initial states (t=0, both clips live from 0) ---------- */
+      tl.set("#comp-stream", { opacity: 1 }, 0);
+      tl.set(".sw", { opacity: 0, y: 6 }, 0);
+      tl.set("#caret-wrap-1", { opacity: 0 }, 0);
+      tl.set("#comp-final", { opacity: 0 }, 0);
+      tl.set("#msg-me", { opacity: 0, y: 16 }, 0);
+      tl.set("#send", { color: "#7a7d81", backgroundColor: "rgba(255,255,255,.05)" }, 0);
+      tl.set("#cursor", { x: 1240, y: 470, opacity: 0 }, 0);
+      tl.set(["#pill", "#statchip"], { xPercent: -50 }, 0);
+
+      /* ---------- 0.0–0.7 fade in from black ---------- */
+      tl.to("#veil", { opacity: 0, duration: 0.7, ease: "power2.inOut" }, 0);
+
+      /* ---------- 0.5–1.7 cursor glides to composer, clicks ---------- */
+      tl.to("#cursor", { opacity: 1, duration: 0.25 }, 0.5);
+      tl.to("#cursor", { x: 688, y: 926, duration: 0.95, ease: "power2.inOut" }, 0.6);
+      tl.to("#cursor", { scale: 0.88, duration: 0.09, yoyo: true, repeat: 1, transformOrigin: "6px 4px" }, 1.62);
+      tl.to("#ripple-1", { opacity: 0.9, duration: 0.05 }, 1.62);
+      tl.to("#ripple-1", { scale: 1.25, opacity: 0, duration: 0.45, ease: "power2.out" }, 1.68);
+      /* focus: border + placeholder stays (empty input keeps placeholder in slack) */
+      tl.to("#composer", { borderColor: "#8b8f94", duration: 0.25 }, 1.65);
+      tl.to("#caret-wrap-1", { opacity: 1, duration: 0.12 }, 1.75);
+      /* cursor drifts out of the way */
+      tl.to("#cursor", { x: 1300, y: 700, duration: 0.8, ease: "power2.inOut" }, 2.0);
+
+      /* ---------- 2.2 key dock rises; 2.7 key pressed, pill in ---------- */
+
+      tl.fromTo("#pill", { opacity: 0, y: 12, scale: 0.9 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.45, ease: "back.out(1.6)" }, 2.75);
+      /* placeholder yields to incoming words */
+      tl.to("#comp-placeholder", { opacity: 0, duration: 0.2 }, 3.05);
+
+      /* ---------- 3.2–8.3 words stream in with ASR-ish cadence ---------- */
+      const gaps = [0, .55, .18, .22, .30, .75, .20, .28, .55, .30, .22, .18, .40, .45, .35];
+      let wt = 3.2;
+      const words = gsap.utils.toArray(".sw");
+      words.forEach((w, i) => {
+        wt += gaps[i];
+        tl.to(w, { opacity: 1, y: 0, duration: 0.22, ease: "power2.out" }, wt);
+      });
+
+      /* ---------- 8.7 key released → transcribing ---------- */
+      tl.to("#pill .dot", { backgroundColor: "#5de8cd", duration: 0.2 }, 8.7);
+      tl.to("#pl-listening", { opacity: 0, duration: 0.18 }, 8.7);
+      tl.to("#pl-scribing", { opacity: 1, duration: 0.18 }, 8.78);
+      tl.to("#pill .bars", { opacity: 0, duration: 0.25 }, 8.72);
+
+      /* ---------- 9.4 finalize: raw stream → punctuated text ---------- */
+      tl.to("#comp-stream", { opacity: 0, duration: 0.16 }, 9.42);
+      tl.fromTo("#comp-final", { opacity: 0 }, { opacity: 1, duration: 0.2 }, 9.5);
+      tl.to("#send", { backgroundColor: "#007a5a", color: "#ffffff", duration: 0.22 }, 9.6);
+
+      /* ---------- 9.9 pill out, stat chip in ---------- */
+      tl.to("#pill", { opacity: 0, y: 10, scale: 0.94, duration: 0.3, ease: "power2.in" }, 9.9);
+      tl.fromTo("#statchip", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }, 10.25);
+
+      /* ---------- 10.6–11.5 cursor → send, click, message posts ---------- */
+      tl.to("#cursor", { x: 1680, y: 938, duration: 0.75, ease: "power2.inOut" }, 10.6);
+      tl.to("#cursor", { scale: 0.88, duration: 0.09, yoyo: true, repeat: 1, transformOrigin: "6px 4px" }, 11.42);
+      tl.to("#ripple-2", { opacity: 0.9, duration: 0.05 }, 11.42);
+      tl.to("#ripple-2", { scale: 1.25, opacity: 0, duration: 0.45, ease: "power2.out" }, 11.48);
+      tl.to("#send", { scale: 0.9, duration: 0.09, yoyo: true, repeat: 1 }, 11.42);
+
+      tl.to("#comp-final", { opacity: 0, duration: 0.12 }, 11.6);
+      tl.to("#msg-me", { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 11.62);
+      tl.to("#send", { backgroundColor: "rgba(255,255,255,.05)", color: "#7a7d81", duration: 0.25 }, 11.75);
+      tl.to("#comp-placeholder", { opacity: 1, duration: 0.3 }, 11.85);
+
+      /* ---------- 12.6–14.6 settle, cursor drifts ---------- */
+      tl.to("#cursor", { x: 1420, y: 760, duration: 0.9, ease: "power2.inOut" }, 12.3);
+      tl.to("#statchip", { opacity: 0, y: 6, duration: 0.3 }, 11.25);
+
+      /* ---------- 14.8–15.5 fade to black for seamless loop ---------- */
+      tl.to("#veil", { opacity: 1, duration: 0.65, ease: "power2.inOut" }, 14.85);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
