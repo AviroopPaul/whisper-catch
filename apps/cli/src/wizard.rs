@@ -43,6 +43,15 @@ enum DlMsg {
     Failed(String),
 }
 
+#[cfg(target_os = "macos")]
+pub fn need_setup(model: ModelId) -> bool {
+    // macOS permission grants only register after an app relaunch, so we never
+    // hard-gate first-run on them (that traps the user in the wizard). The
+    // wizard guides granting; Settings › Permissions manages it afterwards.
+    !model.spec().is_complete(&wc_core::models_dir())
+}
+
+#[cfg(not(target_os = "macos"))]
 pub fn need_setup(model: ModelId) -> bool {
     !wc_hotkey::keyboard_accessible() || !model.spec().is_complete(&wc_core::models_dir())
 }
@@ -161,8 +170,9 @@ fn grant_keyboard_access() -> Result<(), String> {
     if trusted {
         Ok(())
     } else {
-        Err("Turn on WhisprCatch under Accessibility, Input Monitoring, and \
-             Microphone in the panels that opened, then reopen WhisprCatch."
+        Err("Settings opened. Turn on WhisprCatch under Accessibility and Input \
+             Monitoring, then click Continue. Grants take effect after you reopen \
+             the app (menu bar → Quit, then launch again)."
             .into())
     }
 }
@@ -492,24 +502,43 @@ impl eframe::App for Wizard {
                             ui.add(egui::Spinner::new().size(20.0).color(theme::accent(ui)));
                             ui.add_space(4.0);
                             ui.label(
-                                egui::RichText::new("Waiting for authorization…").weak().small(),
+                                egui::RichText::new(if cfg!(target_os = "macos") {
+                                    "Opening System Settings…"
+                                } else {
+                                    "Waiting for authorization…"
+                                })
+                                .weak()
+                                .small(),
                             );
-                        } else if primary_button(
-                            ui,
-                            "Grant keyboard access…",
-                            egui::vec2(240.0, 40.0),
-                        )
-                        .clicked()
-                        {
-                            let (tx, r) = mpsc::channel();
-                            *rx = Some(r);
-                            *granting = true;
-                            *error = None;
-                            let ctx2 = ui.ctx().clone();
-                            std::thread::spawn(move || {
-                                let _ = tx.send(grant_keyboard_access());
-                                ctx2.request_repaint();
-                            });
+                        } else {
+                            let label = if cfg!(target_os = "macos") {
+                                "Open Privacy Settings…"
+                            } else {
+                                "Grant keyboard access…"
+                            };
+                            if primary_button(ui, label, egui::vec2(240.0, 40.0)).clicked() {
+                                let (tx, r) = mpsc::channel();
+                                *rx = Some(r);
+                                *granting = true;
+                                *error = None;
+                                let ctx2 = ui.ctx().clone();
+                                std::thread::spawn(move || {
+                                    let _ = tx.send(grant_keyboard_access());
+                                    ctx2.request_repaint();
+                                });
+                            }
+                            // macOS grants only register after a relaunch, so never
+                            // trap the user here — let them proceed and finish later.
+                            #[cfg(target_os = "macos")]
+                            {
+                                ui.add_space(10.0);
+                                if ui
+                                    .small_button("Continue — I'll grant these later")
+                                    .clicked()
+                                {
+                                    next = Some(Step::first_download(model));
+                                }
+                            }
                         }
                     }
                     Step::Download { .. } => {
@@ -602,12 +631,13 @@ impl eframe::App for Wizard {
                             if let Some(e) = error {
                                 ui.add_space(16.0);
                                 let msg = e.clone();
+                                let hint = if cfg!(target_os = "macos") {
+                                    "You can manage these anytime in Settings › Permissions."
+                                } else {
+                                    "Nothing was changed — you can try again below."
+                                };
                                 step_body(ui, |ui| {
-                                    error_box(
-                                        ui,
-                                        &msg,
-                                        Some("Nothing was changed — you can try again below."),
-                                    );
+                                    error_box(ui, &msg, Some(hint));
                                 });
                             }
                         }

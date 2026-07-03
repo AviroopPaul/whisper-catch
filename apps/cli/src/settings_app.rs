@@ -602,6 +602,12 @@ impl App {
 
             self.model_card(ui);
 
+            #[cfg(target_os = "macos")]
+            {
+                ui.add_space(12.0);
+                self.permissions_card(ui);
+            }
+
             ui.add_space(16.0);
             ui.horizontal(|ui| {
                 if theme::accent_button(ui, format!("{}  Save", icons::FLOPPY_DISK)).clicked() {
@@ -763,6 +769,71 @@ impl App {
             let ctx = ui.ctx().clone();
             self.start_download(m, &ctx);
         }
+    }
+
+    /// macOS permission manager — status + a button to open each Privacy pane.
+    #[cfg(target_os = "macos")]
+    fn permissions_card(&mut self, ui: &mut egui::Ui) {
+        fn open_pane(anchor: &str) {
+            let _ = std::process::Command::new("open")
+                .arg(format!(
+                    "x-apple.systempreferences:com.apple.preference.security?{anchor}"
+                ))
+                .status();
+        }
+        fn status_row(
+            ui: &mut egui::Ui,
+            icon: &str,
+            name: &str,
+            granted: Option<bool>,
+            anchor: &'static str,
+        ) {
+            ui.horizontal(|ui| {
+                setting_label(ui, icon, name);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.small_button("Open").clicked() {
+                        open_pane(anchor);
+                    }
+                    ui.add_space(8.0);
+                    match granted {
+                        Some(true) => {
+                            ui.label(
+                                egui::RichText::new(format!("{} granted", icons::CHECK))
+                                    .small()
+                                    .color(theme::success(ui)),
+                            );
+                        }
+                        Some(false) => {
+                            ui.label(
+                                egui::RichText::new("not granted")
+                                    .small()
+                                    .color(theme::warning(ui)),
+                            );
+                        }
+                        None => {}
+                    }
+                });
+            });
+            ui.add_space(4.0);
+        }
+
+        let acc = wc_hotkey::keyboard_accessible();
+        let inp = wc_hotkey::input_monitoring_granted();
+        theme::card(ui).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            section_title(ui, icons::LOCK, "Permissions");
+            ui.add_space(8.0);
+            status_row(ui, icons::CURSOR_TEXT, "Accessibility — types your text", Some(acc), "Privacy_Accessibility");
+            status_row(ui, icons::KEYBOARD, "Input Monitoring — sees the hotkey", Some(inp), "Privacy_ListenEvent");
+            status_row(ui, icons::MICROPHONE, "Microphone — captures speech", None, "Privacy_Microphone");
+            ui.label(
+                egui::RichText::new(
+                    "After enabling a permission, quit and reopen WhisprCatch (menu bar → Quit) for it to take effect.",
+                )
+                .small()
+                .weak(),
+            );
+        });
     }
 
     fn about_tab(&mut self, ui: &mut egui::Ui) {
