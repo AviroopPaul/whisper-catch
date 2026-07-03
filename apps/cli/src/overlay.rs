@@ -57,7 +57,7 @@ pub fn run() -> anyhow::Result<()> {
             });
             Ok(Box::new(Overlay {
                 state: st,
-                positioned: false,
+                position_frames: 0,
             }) as Box<dyn eframe::App>)
         }),
     )
@@ -66,7 +66,9 @@ pub fn run() -> anyhow::Result<()> {
 
 struct Overlay {
     state: Arc<AtomicU8>,
-    positioned: bool,
+    /// Re-assert the position for the first frames — some WMs override the
+    /// first move request, leaving the pill wherever it was initially placed.
+    position_frames: u32,
 }
 
 impl eframe::App for Overlay {
@@ -80,12 +82,18 @@ impl eframe::App for Overlay {
             return;
         }
 
-        if !self.positioned {
+        if self.position_frames < 10 {
             if let Some(size) = ctx.input(|i| i.viewport().monitor_size) {
                 let x = (size.x - W) / 2.0;
                 let y = size.y - H - 64.0;
                 ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition([x, y].into()));
-                self.positioned = true;
+                if self.position_frames == 0 {
+                    log::info!("overlay at ({x:.0},{y:.0}) on monitor {size:?}");
+                }
+                self.position_frames += 1;
+            } else if self.position_frames == 0 {
+                log::warn!("overlay: monitor size unknown, using WM placement");
+                self.position_frames = 10;
             }
         }
 

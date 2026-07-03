@@ -210,8 +210,10 @@ fn acquire_instance_lock() -> Option<std::fs::File> {
 /// Close the mic this long after the last utterance — instant re-dictation
 /// within the window, and the OS mic-in-use indicator clears soon after.
 const MIC_IDLE_CLOSE: Duration = Duration::from_secs(10);
-/// Rolling transcription cadence while the key is held.
-const STREAM_INTERVAL: Duration = Duration::from_millis(1200);
+/// Rolling transcription cadence while the key is held. Word latency is
+/// roughly two intervals (LocalAgreement needs consecutive passes to agree)
+/// plus inference, so keep this tight — inference is only ~0.1-0.5s.
+const STREAM_INTERVAL: Duration = Duration::from_millis(500);
 /// Words at the tail of a hypothesis we refuse to commit — the model often
 /// revises the most recent words on the next pass (LocalAgreement guard).
 const STREAM_GUARD_WORDS: usize = 2;
@@ -321,7 +323,7 @@ fn run_ptt(
     let mut last_pass = std::time::Instant::now();
 
     loop {
-        match events.recv_timeout(Duration::from_millis(250)) {
+        match events.recv_timeout(Duration::from_millis(120)) {
             Ok(PttEvent::Pressed) => {
                 if !state.is_enabled() || armed {
                     continue;
@@ -443,7 +445,7 @@ fn run_ptt(
                 {
                     last_pass = std::time::Instant::now();
                     if let Some(cap) = capture.as_ref() {
-                        if cap.armed_secs() >= 1.0 {
+                        if cap.armed_secs() >= 0.5 {
                             if let Ok(snap) = cap.snapshot() {
                                 match engine.transcribe(&snap) {
                                     Ok(text) => {
