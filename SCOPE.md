@@ -2,6 +2,8 @@
 
 Local, on-device dictation (WhisperFlow-style): hold hotkey → speak → release → punctuated text appears at cursor. Linux + macOS. Floor device: MacBook Air M1 8GB. English-first.
 
+> **Status (shipped):** Linux (evdev + XTEST + ksni) and **macOS (CGEventTap + CGEvent + NSStatusItem menu bar)** both work. Two selectable models: **Moonshine base** int8 (~64 MB, ~0.4 GB RAM — the macOS default for 8 GB Airs) and **Parakeet 0.6B** int8 (~660 MB — the Linux default). macOS ships an ad-hoc-signed `.dmg` (`packaging/macos/build-dmg.sh`); Developer ID notarization is the remaining distribution step.
+
 > Research date: 2026-07-03. Prior art studied: [Handy](https://github.com/cjpais/handy) (Tauri + whisper-rs + Parakeet, MIT — closest existing project, study before building), [VoiceInk](https://github.com/Beingpax/VoiceInk) (Swift, macOS-only reference), whisper-overlay / Voxtype / numen (Linux plumbing reference).
 
 ---
@@ -85,9 +87,9 @@ whisper-catch/
 
 | Tier | Model | Disk | RAM | Notes |
 |---|---|---|---|---|
-| Default | parakeet-tdt-0.6b-v2 int8 | ~640MB | ~1.2–2GB | Best English WER in class, punct/caps native |
-| Small | canary-180m-flash int8 | ~146MB | low | If 8GB Air is squeezed; punct/caps, CC-BY-4.0 |
-| Whisper alt | small.en / large-v3-turbo q5_0 GGML | 466MB / 547MB | ~850MB–2GB | Metal on mac, Vulkan on Arc iGPU |
+| Accurate | parakeet-tdt-0.6b-v2 int8 | ~660MB | ~1.2–2GB | Best English WER in class, punct/caps native. **Shipped** (Linux default). |
+| Small **(shipped)** | moonshine-base int8 (ONNX, transformers.js export) | ~64MB | ~0.4GB | English, punct/caps; runs on an 8GB M1 Air. Same ORT stack as Parakeet — no whisper.cpp/cmake. **macOS default.** |
+| Whisper alt (future) | small.en / large-v3-turbo q5_0 GGML | 466MB / 547MB | ~850MB–2GB | Would need the `whisper-cpp` feature (Metal build). Not shipped. |
 
 Upgrade paths (post-MVP): `parakeet-unified-en-0.6b` for true streaming (~160ms, blocked on sherpa-onnx export support, issue #3573); FluidAudio (CoreML/ANE) backend on Apple Silicon for battery/thermals; Kyutai stt-1b for live-typing UX.
 

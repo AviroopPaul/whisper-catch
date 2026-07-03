@@ -12,6 +12,7 @@ capture = ["dep:cpal", "dep:rubato"]
 anyhow.workspace = true
 log.workspace = true
 transcribe-rs = { version = "0.3", features = ["onnx"] }
+wc-models = { path = "../models" }
 cpal = { version = "0.16", optional = true }
 rubato = { version = "0.16", optional = true }
 dirs = "6"

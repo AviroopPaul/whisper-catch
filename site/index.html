@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WhisprCatch — local push-to-talk dictation for Linux</title>
-<meta name="description" content="Hold a key, speak, release — punctuated text appears at your cursor. 100% on-device speech-to-text for Linux. No cloud, no account, no audio leaving your laptop.">
+<title>WhisprCatch — local push-to-talk dictation for macOS &amp; Linux</title>
+<meta name="description" content="Hold a key, speak, release — punctuated text appears at your cursor. 100% on-device speech-to-text for macOS and Linux. No cloud, no account, no audio leaving your laptop.">
 <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-<meta property="og:title" content="WhisprCatch — local push-to-talk dictation for Linux">
+<meta property="og:title" content="WhisprCatch — local push-to-talk dictation for macOS &amp; Linux">
 <meta property="og:description" content="Hold a key, speak, release — punctuated text appears at your cursor. Runs entirely on your machine. No cloud, no account, no subscription.">
 <meta property="og:image" content="assets/icon-512.png">
 <meta property="og:type" content="website">
@@ -398,10 +398,11 @@
     <nav class="nav-links" aria-label="Main">
       <a href="#features">Features</a>
       <a href="#how">How it works</a>
+      <a href="#models">Models</a>
       <a href="#privacy">Privacy</a>
       <a href="#faq">FAQ</a>
       <a href="https://github.com/AviroopPaul/whisper-catch">GitHub</a>
-      <a class="nav-cta" href="https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_amd64.deb">Download</a>
+      <a class="nav-cta" href="#install">Download</a>
     </nav>
   </div>
 </header>
@@ -416,15 +417,15 @@
          No cloud, no subscription, no audio leaving your laptop.</p>
       <p class="ritual">hold <kbd>Right Alt</kbd> <span class="arrow">→</span> speak <span class="arrow">→</span> release</p>
       <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_amd64.deb">
+        <a class="btn btn-primary" href="https://github.com/AviroopPaul/whisper-catch/releases/latest">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/>
           </svg>
-          Download .deb
+          Download for macOS
         </a>
-        <a class="btn btn-ghost" href="https://github.com/AviroopPaul/whisper-catch">View on GitHub</a>
+        <a class="btn btn-ghost" href="https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_amd64.deb">Get the .deb (Linux)</a>
       </div>
-      <p class="cta-note">Free &amp; open source · Linux x86-64 · No account, no cloud</p>
+      <p class="cta-note">Free &amp; open source · macOS (Apple Silicon) &amp; Linux x86-64 · No account, no cloud</p>
 
       <!-- Animated dictation mock -->
       <div class="demo" id="demo">
@@ -511,7 +512,7 @@
               </svg>
             </div>
             <h3>100% on-device</h3>
-            <p>NVIDIA Parakeet 0.6B running locally via ONNX Runtime. Beats Whisper large-v3 on English accuracy — with zero network calls.</p>
+            <p>Pick a model to fit your machine — tiny Moonshine or accurate Parakeet 0.6B. Both run locally via ONNX Runtime, with zero network calls.</p>
           </div>
           <div class="card">
             <div class="plate">
@@ -563,6 +564,41 @@
     </section>
   </div>
 
+  <!-- ================= Models ================= -->
+  <section id="models">
+    <div class="wrap">
+      <p class="eyebrow">Models</p>
+      <h2>Fits your machine.</h2>
+      <p class="section-intro">Two on-device models, one toggle in Settings. Start light on a MacBook Air, or trade RAM for the best accuracy.</p>
+      <div class="compare">
+        <div class="card local">
+          <div class="compare-title">
+            <h3>Moonshine base</h3>
+            <span class="tag tag-accent">Light · macOS default</span>
+          </div>
+          <ul>
+            <li><svg class="li-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg>~64&nbsp;MB download · ~0.4&nbsp;GB RAM</li>
+            <li><svg class="li-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg>Runs comfortably on an 8&nbsp;GB M1 Air</li>
+            <li><svg class="li-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg>English, punctuated &amp; capitalized</li>
+            <li><svg class="li-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg>Sub-second transcription on the CPU</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="compare-title">
+            <h3>Parakeet 0.6B</h3>
+            <span class="tag tag-muted">Accurate · Linux default</span>
+          </div>
+          <ul>
+            <li><svg class="li-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg>~660&nbsp;MB download · ~1.5&nbsp;GB RAM</li>
+            <li><svg class="li-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg>Beats Whisper large-v3 on English WER</li>
+            <li><svg class="li-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg>Best on 16&nbsp;GB+ machines</li>
+            <li><svg class="li-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg>~25× realtime on the CPU</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ================= Privacy ================= -->
   <section id="privacy">
     <div class="wrap">
@@ -609,32 +645,43 @@
         <h2>Install in a minute.</h2>
         <div class="install-grid">
           <div>
+            <h3 style="font-size:18px;font-weight:600;margin-bottom:16px;">macOS <span style="color:var(--text-2);font-weight:400;">· Apple Silicon</span></h3>
             <ol class="install-steps">
-              <li><div><strong>Download the .deb</strong><p>One file, Ubuntu/Debian x86-64.</p></div></li>
-              <li><div><strong>Double-click to install</strong><p>Or open it with your software center.</p></div></li>
-              <li><div><strong>Launch WhisprCatch</strong><p>A setup wizard handles keyboard permission and the model download — no terminal needed.</p></div></li>
+              <li><div><strong>Download the .dmg</strong><p>One file, for M1/M2/M3 Macs.</p></div></li>
+              <li><div><strong>Drag to Applications</strong><p>Then right-click → Open the first time (not yet notarized).</p></div></li>
+              <li><div><strong>Grant &amp; go</strong><p>A wizard requests Accessibility, Input Monitoring, and Microphone, then downloads the model. Hold <kbd>Right&nbsp;⌘</kbd> to dictate.</p></div></li>
             </ol>
             <div class="install-cta">
-              <a class="btn btn-primary" href="https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_amd64.deb">
+              <a class="btn btn-primary" href="https://github.com/AviroopPaul/whisper-catch/releases/latest">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/>
                 </svg>
-                Download .deb
+                Download .dmg
               </a>
             </div>
-            <p class="install-note">First launch downloads the ~660 MB speech model, once. After that, everything is offline.</p>
+            <p class="install-note">Ships with the lightweight <strong>Moonshine</strong> model (~64&nbsp;MB, ~0.4&nbsp;GB RAM) — comfortable on an 8&nbsp;GB MacBook Air. Switch to the accurate Parakeet model in Settings.</p>
           </div>
-          <details class="terminal">
-            <summary>Prefer the terminal?</summary>
-            <div class="code"><span class="c"># install the package</span>
+          <div>
+            <h3 style="font-size:18px;font-weight:600;margin-bottom:16px;">Linux <span style="color:var(--text-2);font-weight:400;">· Ubuntu / Debian x86-64</span></h3>
+            <ol class="install-steps">
+              <li><div><strong>Download the .deb</strong><p>Double-click, or open with your software center.</p></div></li>
+              <li><div><strong>Launch WhisprCatch</strong><p>A wizard handles keyboard permission and the model download — no terminal needed.</p></div></li>
+            </ol>
+            <div class="install-cta">
+              <a class="btn btn-ghost" href="https://github.com/AviroopPaul/whisper-catch/releases/latest/download/whisper-catch_amd64.deb">Download .deb</a>
+            </div>
+            <details class="terminal" style="margin-top:20px;">
+              <summary>Prefer the terminal?</summary>
+              <div class="code"><span class="c"># Linux — install &amp; run</span>
 <span class="p">$</span> sudo apt install ./whisper-catch_amd64.deb
 <span class="p">$</span> whisper-catch ptt
 
-<span class="c"># or build from source</span>
+<span class="c"># build from source (macOS or Linux)</span>
 <span class="p">$</span> git clone https://github.com/AviroopPaul/whisper-catch
 <span class="p">$</span> cd whisper-catch
 <span class="p">$</span> cargo build --release -p whisper-catch</div>
-          </details>
+            </details>
+          </div>
         </div>
       </div>
     </section>
@@ -677,19 +724,23 @@
       <div class="faq-list">
         <details class="faq">
           <summary>Does it work offline?</summary>
-          <p class="answer">Yes — completely. The speech model runs on your CPU via ONNX Runtime, and dictation makes zero network calls. The only download ever is the ~660 MB model, once, during setup. Verify it yourself: the code is open, or watch the process with a network monitor while you dictate.</p>
+          <p class="answer">Yes — completely. The speech model runs on your CPU via ONNX Runtime, and dictation makes zero network calls. The only download ever is the model itself, once, during setup (~64 MB for Moonshine, ~660 MB for Parakeet). Verify it yourself: the code is open, or watch the process with a network monitor while you dictate.</p>
         </details>
         <details class="faq">
           <summary>Which languages does it support?</summary>
           <p class="answer">English today. The bundled model, NVIDIA Parakeet 0.6B, outperforms Whisper large-v3 on English benchmarks at a fraction of the size. Additional languages are on the roadmap as strong local models become available.</p>
         </details>
         <details class="faq">
-          <summary>Wayland or X11?</summary>
-          <p class="answer">X11 today — text injection and the global hotkey use X11 APIs. On GNOME you can pick "Ubuntu on Xorg" at the login screen. Wayland support is planned.</p>
+          <summary>Wayland or X11? (Linux)</summary>
+          <p class="answer">On Linux, X11 today — text injection and the global hotkey use X11 APIs. On GNOME you can pick "Ubuntu on Xorg" at the login screen; Wayland support is planned. (On macOS, WhisprCatch uses the native CGEvent APIs — no X11 involved.)</p>
         </details>
         <details class="faq">
-          <summary>What about macOS or Windows?</summary>
-          <p class="answer">Linux only for now (Ubuntu/Debian, x86-64). A macOS build is planned. If you want it sooner, say so in a <a href="https://github.com/AviroopPaul/whisper-catch/issues">GitHub issue</a> — it helps set priorities.</p>
+          <summary>Which model should I use, and how much RAM?</summary>
+          <p class="answer">macOS defaults to <b>Moonshine base</b> — a ~64&nbsp;MB model that uses about 0.4&nbsp;GB of RAM, so it's comfortable even on an 8&nbsp;GB MacBook Air. Prefer maximum accuracy and have the memory? Switch to <b>Parakeet 0.6B</b> (~660&nbsp;MB, ~1.5&nbsp;GB RAM) in Settings — it's the Linux default. The model downloads on demand and is SHA-256 verified.</p>
+        </details>
+        <details class="faq">
+          <summary>Does it run on macOS?</summary>
+          <p class="answer">Yes — there's a native Apple-Silicon build (M1/M2/M3). Download the <code>.dmg</code>, drag WhisprCatch to Applications, and grant Accessibility, Input Monitoring, and Microphone on first run. It lives in the menu bar; hold <b>Right&nbsp;⌘</b> to dictate. The build isn't notarized yet, so the first open is right-click → Open. Windows isn't supported yet.</p>
         </details>
         <details class="faq">
           <summary>Is it open source?</summary>
