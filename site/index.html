@@ -227,15 +227,6 @@
   .lede b { color: var(--ink); font-weight: 500; }
 
   /* how — three beats */
-  .beats { margin-top: 72px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
-  @media (max-width: 720px) { .beats { grid-template-columns: 1fr; gap: 0; } }
-  .beat { border-top: 1px solid var(--line-strong); padding-top: 26px; }
-  @media (max-width: 720px) { .beat { padding: 26px 0 34px; } }
-  .beat .idx { font: 400 12px/1 var(--mono); color: var(--faint); }
-  .beat h3 { margin-top: 44px; font-size: 34px; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
-  .beat h3 em.voice { color: var(--teal); }
-  .beat p { margin-top: 12px; color: var(--dim); font-size: 15.5px; max-width: 250px; }
-  @media (max-width: 720px) { .beat h3 { margin-top: 20px; } }
 
   /* privacy band */
   .band { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--panel); position: relative; overflow: hidden; }
@@ -245,48 +236,14 @@
   }
   .band .wrap { position: relative; }
 
-  .flow {
-    margin-top: 68px; max-width: 780px;
-    display: flex; align-items: center; gap: 18px;
-  }
-  .flow-node { text-align: center; flex: none; }
-  .flow-node .glyph {
-    width: 58px; height: 58px; margin: 0 auto; border-radius: 14px;
-    background: var(--panel-2); border: 1px solid var(--line-strong);
-    display: flex; align-items: center; justify-content: center; color: var(--teal);
-  }
-  .flow-node.chipnode .glyph {
-    width: auto; padding: 0 22px; border-color: rgba(93, 232, 205, .3);
-    background: var(--teal-soft);
-    font: 400 13px/1.4 var(--mono); color: var(--teal); flex-direction: column; gap: 3px;
-  }
-  .flow-node.chipnode .glyph small { font-size: 10.5px; color: var(--dim); }
-  .flow-node figcaption { margin-top: 12px; font: 400 11.5px/1.4 var(--mono); color: var(--faint); }
-  .flow-line { flex: 1; height: 3px; min-width: 20px; position: relative; overflow: hidden; }
-  .flow-line::before { content: ""; position: absolute; left: 0; right: 0; top: 1px; height: 1px; background: var(--line-strong); }
-  .flow-line::after {
-    content: ""; position: absolute; top: 0; left: 0; width: 30px; height: 3px; border-radius: 2px;
-    background: linear-gradient(90deg, transparent, var(--teal), transparent);
-    animation: travel 2.8s linear infinite; opacity: .9;
-  }
-  .flow-line + .flow-node + .flow-line::after { animation-delay: 1.4s; }
   @keyframes travel { from { transform: translateX(-34px); } to { transform: translateX(340px); } }
   @media (max-width: 720px) {
-    .flow { flex-direction: column; gap: 4px; }
-    .flow-line { width: 1px; height: 34px; flex: none; min-width: 0; }
-    .flow-line::before { left: 0; right: auto; top: 0; bottom: 0; width: 1px; height: auto; }
-    .flow-line::after { display: none; }
-    .flow-node figcaption { margin-top: 8px; margin-bottom: 8px; }
   }
 
-  .nocloud {
-    margin-top: 40px; display: inline-flex; align-items: center; gap: 12px;
-    font: 400 12.5px/1 var(--mono); color: var(--faint);
-  }
-  .nocloud svg { color: var(--faint); opacity: .8; }
 
-  .stats { margin-top: 76px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
-  @media (max-width: 820px) { .stats { grid-template-columns: repeat(2, 1fr); gap: 40px 24px; } }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  #promise { padding: 76px 0; }
+  @media (max-width: 820px) { .stats { grid-template-columns: 1fr; gap: 36px; } }
   .stat { border-left: 1px solid var(--line-strong); padding-left: 20px; }
   .stat .val { font: 400 clamp(28px, 3.6vw, 40px)/1.1 var(--mono); color: var(--ink); letter-spacing: -.02em; }
   .stat .lbl { margin-top: 8px; color: var(--dim); font-size: 13.5px; }
@@ -392,76 +349,14 @@
     </div>
   </section>
 
-  <!-- ================= how ================= -->
-  <section id="how">
-    <div class="wrap">
-      <p class="kicker reveal">How it works</p>
-      <h2 class="reveal">The whole interface<br>is one key.</h2>
-      <div class="beats">
-        <div class="beat reveal" data-d="1">
-          <span class="idx">01</span>
-          <h3>Hold.</h3>
-          <p>Right Alt, from any app. Nothing to launch, nothing to click.</p>
-        </div>
-        <div class="beat reveal" data-d="2">
-          <span class="idx">02</span>
-          <h3><em class="voice">Speak.</em></h3>
-          <p>A small pill listens near your cursor — words stream in live.</p>
-        </div>
-        <div class="beat reveal" data-d="3">
-          <span class="idx">03</span>
-          <h3>Release.</h3>
-          <p>Punctuated, capitalized text — in under half a second.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= privacy ================= -->
+  <!-- ================= promise strip ================= -->
   <div class="band">
-    <section id="private">
+    <section id="promise">
       <div class="wrap">
-        <p class="kicker reveal">On-device</p>
-        <h2 class="reveal">Nothing leaves<br>this laptop.</h2>
-        <p class="lede reveal" data-d="1">NVIDIA Parakeet 0.6B runs on your CPU via ONNX Runtime. Your voice is decoded in memory and typed at your cursor — <b>that's the entire pipeline.</b></p>
-
-        <div class="flow reveal" data-d="1" aria-label="Pipeline: microphone, to the Parakeet model on your CPU, to text at your cursor.">
-          <figure class="flow-node">
-            <div class="glyph">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/><path d="M12 18v3.5"/>
-              </svg>
-            </div>
-            <figcaption>your voice</figcaption>
-          </figure>
-          <span class="flow-line"></span>
-          <figure class="flow-node chipnode">
-            <div class="glyph" style="height:58px">parakeet 0.6b<small>onnx · your cpu</small></div>
-            <figcaption>decoded in memory</figcaption>
-          </figure>
-          <span class="flow-line"></span>
-          <figure class="flow-node">
-            <div class="glyph">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M17 22h-1a4 4 0 0 1-4-4V6a4 4 0 0 1 4-4h1"/><path d="M7 22h1a4 4 0 0 0 4-4v-1"/><path d="M7 2h1a4 4 0 0 1 4 4v1"/>
-              </svg>
-            </div>
-            <figcaption>typed at your cursor</figcaption>
-          </figure>
-        </div>
-
-        <p class="nocloud reveal" data-d="2">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="m2 2 20 20"/><path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193"/><path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7 7 0 0 0 8.31 5.03"/>
-          </svg>
-          no cloud in this diagram
-        </p>
-
         <div class="stats">
-          <div class="stat reveal"><div class="val">0</div><div class="lbl">network calls while you dictate</div></div>
-          <div class="stat reveal" data-d="1"><div class="val">~25×</div><div class="lbl">realtime on a laptop CPU</div></div>
-          <div class="stat reveal" data-d="2"><div class="val">$0</div><div class="lbl">no account, no subscription</div></div>
-          <div class="stat reveal" data-d="3"><div class="val">MIT</div><div class="lbl">open source, every line</div></div>
+          <div class="stat reveal"><div class="val">$0</div><div class="lbl">free — no account, no subscription</div></div>
+          <div class="stat reveal" data-d="1"><div class="val">MIT</div><div class="lbl">open source, every line</div></div>
+          <div class="stat reveal" data-d="2"><div class="val">0</div><div class="lbl">network calls — runs on your device</div></div>
         </div>
       </div>
     </section>
