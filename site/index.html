@@ -195,15 +195,14 @@
   }
   .hero .sub b { color: var(--ink); font-weight: 500; }
   .cta { margin-top: 32px; display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
-  .cta .wl { margin: 0; min-height: 0; display: flex; align-items: center; }
+  .cta .wl { margin: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; }
   .cta .wl-trigger {
     font: inherit; font-size: 15.5px; font-weight: 600; letter-spacing: -.01em; color: var(--ink);
     border: 1px solid var(--line-strong); border-style: solid; border-radius: 10px;
     padding: 14px 24px; background: rgba(255, 255, 255, .02); white-space: nowrap;
   }
-  @media (max-width: 480px) { .cta .wl-trigger { font-size: 13.5px; padding: 14px 16px; } }
+  @media (max-width: 480px) { .cta .wl-trigger { font-size: 13.5px; padding: 12px 16px; } }
   .cta .wl-trigger b { font-weight: 600; }
-  .cta .wl-err { position: absolute; margin-top: 96px; }
   .btn {
     display: inline-flex; align-items: center; gap: 10px;
     background: var(--teal); color: var(--teal-deep);
@@ -221,6 +220,7 @@
   .link-gh::after { content: " →"; color: var(--faint); }
   .hero-note { margin-top: 20px; font: 400 12.5px/1.6 var(--mono); color: var(--faint); }
   .hero-note b { color: var(--dim); font-weight: 400; }
+  .hero-note span { white-space: nowrap; }
 
 
   /* ---------- macOS waitlist ---------- */
@@ -235,6 +235,8 @@
   .wl-trigger svg { flex: none; opacity: .8; }
   .wl-trigger:hover { color: var(--ink); border-color: rgba(93, 232, 205, .45); background: var(--teal-soft); }
   .wl-trigger b { color: var(--teal); font-weight: 400; }
+  .wl-trigger .wl-copy { text-align: left; min-width: 0; }
+  @media (max-width: 480px) { .wl-trigger { max-width: 100%; } .wl-trigger .wl-copy { line-height: 1.5; } }
   .wl-form { display: none; align-items: stretch; gap: 8px; max-width: 400px; }
   .wl.open .wl-form { display: flex; }
   .wl.open .wl-trigger { display: none; }
@@ -283,7 +285,11 @@
   @media (max-width: 720px) {
     .hero-video { margin-top: 40px; width: calc(100vw - 24px); }
     .hero-video::before { inset: -40px 0; }
-    .hero-video video { border-radius: 10px; }
+    /* crop into the action area so the demo stays legible on small screens */
+    .hero-video video { border-radius: 10px; aspect-ratio: 4 / 3; object-fit: cover; object-position: 55% 50%; }
+  }
+  @media (max-width: 500px) {
+    .hero-video video { aspect-ratio: 1 / 1; object-position: 56% 50%; }
   }
 
   /* ================= sections ================= */
@@ -418,7 +424,7 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.954 4.45z"/>
           </svg>
-          macOS coming soon · <b>join the waitlist</b>
+          <span class="wl-copy">macOS coming soon · <b>join the waitlist</b></span>
         </button>
         <form class="wl-form" novalidate>
           <input type="email" name="email" autocomplete="email" placeholder="you@email.com" aria-label="Email address for the macOS waitlist" required>
@@ -431,7 +437,7 @@
         <p class="wl-err" role="alert"></p>
       </div>
       </div>
-      <p class="hero-note rise d3">free &amp; open source · no cloud, no account · linux today</p>
+      <p class="hero-note rise d3"><span>free &amp; open source ·</span> <span>no cloud, no account ·</span> <span>linux today</span></p>
     </div>
 
     <!-- hero demo video -->
@@ -477,7 +483,7 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.954 4.45z"/>
           </svg>
-          macOS coming soon · <b>join the waitlist</b>
+          <span class="wl-copy">macOS coming soon · <b>join the waitlist</b></span>
         </button>
         <form class="wl-form" novalidate>
           <input type="email" name="email" autocomplete="email" placeholder="you@email.com" aria-label="Email address for the macOS waitlist" required>
