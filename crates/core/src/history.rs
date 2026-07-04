@@ -54,6 +54,29 @@ pub fn load(limit: usize) -> Result<Vec<Entry>> {
     Ok(entries)
 }
 
+/// Removes a single entry, matched by timestamp. Rewrites the file; a
+/// history this size (append-only text) makes that cheap.
+pub fn delete(ts: u64) -> Result<()> {
+    let path = history_path();
+    if !path.exists() {
+        return Ok(());
+    }
+    let raw = std::fs::read_to_string(&path)?;
+    let kept: Vec<&str> = raw
+        .lines()
+        .filter(|l| {
+            serde_json::from_str::<Entry>(l)
+                .map(|e| e.ts != ts)
+                .unwrap_or(true)
+        })
+        .collect();
+    let mut out = kept.join("\n");
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    std::fs::write(&path, out).with_context(|| format!("rewriting {}", path.display()))
+}
+
 pub fn clear() -> Result<()> {
     match std::fs::remove_file(history_path()) {
         Ok(()) => Ok(()),

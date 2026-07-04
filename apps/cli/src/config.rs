@@ -14,8 +14,6 @@ pub struct Config {
     pub model_dir: Option<PathBuf>,
     /// Keep a local log of transcriptions (history.jsonl)
     pub history: bool,
-    /// UI theme: system, light, dark
-    pub theme: String,
     /// Type words live while speaking instead of all at once on release
     pub streaming: bool,
     /// Show the floating recording indicator while dictating
@@ -33,11 +31,55 @@ impl Default for Config {
             model: if cfg!(target_os = "macos") { "moonshine" } else { "parakeet" }.into(),
             model_dir: None,
             history: true,
-            theme: "system".into(),
             streaming: true,
             overlay: true,
         }
     }
+}
+
+/// PTT keys offered in Settings, with display names. Platform-aware: macOS
+/// leads with the Command keys (Right Alt is a dead key there).
+pub const KEYS: &[(&str, &str)] = if cfg!(target_os = "macos") {
+    &[
+        ("rcmd", "Right ⌘"),
+        ("lcmd", "Left ⌘"),
+        ("ralt", "Right Option"),
+        ("lalt", "Left Option"),
+        ("rctrl", "Right Ctrl"),
+        ("lctrl", "Left Ctrl"),
+        ("f13", "F13"),
+    ]
+} else {
+    &[
+        ("ralt", "Right Alt"),
+        ("lalt", "Left Alt"),
+        ("rctrl", "Right Ctrl"),
+        ("lctrl", "Left Ctrl"),
+        ("super", "Super / Win"),
+        ("f13", "F13"),
+        ("scrolllock", "Scroll Lock"),
+    ]
+};
+
+/// Human label for a PTT key slug ("rcmd" → "Right ⌘").
+pub fn key_label(key: &str) -> &str {
+    KEYS.iter()
+        .chain(
+            [
+                ("rcmd", "Right ⌘"),
+                ("lcmd", "Left ⌘"),
+                ("super", "Super / Win"),
+                ("scrolllock", "Scroll Lock"),
+                ("ralt", "Right Alt"),
+                ("lalt", "Left Alt"),
+                ("rctrl", "Right Ctrl"),
+                ("lctrl", "Left Ctrl"),
+            ]
+            .iter(),
+        )
+        .find(|(k, _)| *k == key)
+        .map(|(_, l)| *l)
+        .unwrap_or(key)
 }
 
 pub fn config_path() -> PathBuf {

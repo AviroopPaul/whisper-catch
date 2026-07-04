@@ -1,7 +1,7 @@
 //! First-run setup wizard: Welcome → keyboard permission (via polkit, no
 //! terminal) → model download with progress → Done. Runs before the daemon
-//! starts. Fixed-size centered window, one accent action per screen; the
-//! window itself is the card — whitespace does the work.
+//! starts. Fixed-size centered window, one high-emphasis action per screen;
+//! the window itself is the card — whitespace does the work.
 
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
@@ -48,10 +48,10 @@ pub fn need_setup(model: ModelId) -> bool {
 }
 
 /// Blocks on the wizard window; returns when setup is complete or abandoned.
-pub fn run(theme_pref: &str, model: ModelId) -> Result<Outcome> {
+pub fn run(model: ModelId, key_label: &str) -> Result<Outcome> {
     let outcome = Arc::new(Mutex::new(Outcome::Cancelled));
     let out = outcome.clone();
-    let pref = theme_pref.to_string();
+    let key = key_label.to_string();
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -65,8 +65,9 @@ pub fn run(theme_pref: &str, model: ModelId) -> Result<Outcome> {
         "WhisprCatch Setup",
         options,
         Box::new(move |cc| {
-            theme::apply(&cc.egui_ctx, &pref);
-            Ok(Box::new(Wizard::new(out, model)) as Box<dyn eframe::App>)
+            theme::apply(&cc.egui_ctx);
+            theme::install_fonts(&cc.egui_ctx);
+            Ok(Box::new(Wizard::new(out, model, key)) as Box<dyn eframe::App>)
         }),
     )
     .map_err(|e| anyhow::anyhow!("setup window failed: {e}"))?;
@@ -80,14 +81,18 @@ struct Wizard {
     step: Step,
     outcome: Arc<Mutex<Outcome>>,
     model: ModelId,
+    key_label: String,
+    shot: crate::shot::Shot,
 }
 
 impl Wizard {
-    fn new(outcome: Arc<Mutex<Outcome>>, model: ModelId) -> Self {
+    fn new(outcome: Arc<Mutex<Outcome>>, model: ModelId, key_label: String) -> Self {
         Self {
             step: Step::Welcome,
             outcome,
             model,
+            key_label,
+            shot: crate::shot::Shot::from_env(),
         }
     }
 }
@@ -173,7 +178,7 @@ fn grant_keyboard_access() -> Result<(), String> {
 }
 
 // ---------------------------------------------------------------------------
-// Painted UI pieces (no icon fonts needed; crisp at any DPI, light + dark).
+// Painted UI pieces (no icon fonts needed; crisp at any DPI).
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Copy)]
@@ -184,22 +189,16 @@ enum StepIcon {
     Check,
 }
 
-/// Accent at ~10% alpha — chip/plate tint per the design brief.
-fn accent_subtle(ui: &egui::Ui) -> egui::Color32 {
-    let a = theme::accent(ui);
-    let alpha = if ui.visuals().dark_mode { 26 } else { 20 };
-    egui::Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), alpha)
-}
-
-/// 48px stroke icon in accent, centered on a 72px accent-subtle circle plate.
+/// Stroke icon centered on a 72px surface plate with a hairline ring.
+/// Icons draw in foreground; the final check lights up green.
 fn icon_plate(ui: &mut egui::Ui, icon: StepIcon) {
-    let accent = theme::accent(ui);
-    let plate = accent_subtle(ui);
+    let ink = theme::FG;
     let (rect, _) = ui.allocate_exact_size(egui::vec2(72.0, 72.0), egui::Sense::hover());
     let c = rect.center();
     let p = ui.painter();
-    p.circle_filled(c, 36.0, plate);
-    let s = egui::Stroke::new(2.5, accent);
+    p.circle_filled(c, 36.0, theme::SURFACE);
+    p.circle_stroke(c, 36.0, egui::Stroke::new(1.0, theme::RING));
+    let s = egui::Stroke::new(2.5, ink);
     match icon {
         StepIcon::Mic => {
             // capsule body
@@ -223,23 +222,25 @@ fn icon_plate(ui: &mut egui::Ui, icon: StepIcon) {
                 [egui::pos2(c.x - 7.0, c.y + 16.0), egui::pos2(c.x + 7.0, c.y + 16.0)],
                 s,
             );
+            // recording LED next to the mic
+            p.circle_filled(egui::pos2(c.x + 14.0, c.y - 14.0), 3.0, theme::RED);
         }
         StepIcon::Keyboard => {
             p.rect_stroke(
                 egui::Rect::from_center_size(c, egui::vec2(38.0, 26.0)),
                 egui::CornerRadius::same(5),
-                egui::Stroke::new(2.0, accent),
+                egui::Stroke::new(2.0, ink),
                 egui::StrokeKind::Middle,
             );
             for y in [-6.0_f32, 0.0] {
                 for k in -2..=2_i32 {
-                    p.circle_filled(egui::pos2(c.x + k as f32 * 6.0, c.y + y), 1.5, accent);
+                    p.circle_filled(egui::pos2(c.x + k as f32 * 6.0, c.y + y), 1.5, ink);
                 }
             }
             // space bar
             p.line_segment(
                 [egui::pos2(c.x - 8.0, c.y + 6.5), egui::pos2(c.x + 8.0, c.y + 6.5)],
-                egui::Stroke::new(2.5, accent),
+                egui::Stroke::new(2.5, ink),
             );
         }
         StepIcon::Download => {
@@ -265,23 +266,21 @@ fn icon_plate(ui: &mut egui::Ui, icon: StepIcon) {
             ));
         }
         StepIcon::Check => {
-            p.circle_stroke(c, 16.0, s);
+            p.circle_stroke(c, 16.0, egui::Stroke::new(2.5, theme::GREEN));
             p.add(egui::Shape::line(
                 vec![
                     egui::pos2(c.x - 7.5, c.y + 0.5),
                     egui::pos2(c.x - 2.5, c.y + 6.0),
                     egui::pos2(c.x + 8.0, c.y - 5.5),
                 ],
-                egui::Stroke::new(3.0, accent),
+                egui::Stroke::new(3.0, theme::GREEN),
             ));
         }
     }
 }
 
-/// Four 8px dots: done = accent fill, current = accent ring, upcoming = border.
+/// Four 8px dots: done = green fill, current = green ring, upcoming = raised.
 fn step_dots(ui: &mut egui::Ui, current: usize) {
-    let accent = theme::accent(ui);
-    let upcoming = ui.visuals().widgets.noninteractive.bg_stroke.color;
     let n = 4;
     let r = 4.0;
     let gap = 12.0;
@@ -294,11 +293,11 @@ fn step_dots(ui: &mut egui::Ui, current: usize) {
             rect.center().y,
         );
         if i < current {
-            p.circle_filled(c, r, accent);
+            p.circle_filled(c, r, theme::GREEN);
         } else if i == current {
-            p.circle_stroke(c, r + 0.5, egui::Stroke::new(1.5, accent));
+            p.circle_stroke(c, r + 0.5, egui::Stroke::new(1.5, theme::GREEN));
         } else {
-            p.circle_filled(c, r, upcoming);
+            p.circle_filled(c, r, theme::SURFACE_2);
         }
     }
 }
@@ -313,66 +312,77 @@ fn step_body(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui)) {
     );
 }
 
-/// The one accent-filled button per screen.
+fn title(ui: &mut egui::Ui, text: &str) {
+    ui.label(
+        egui::RichText::new(text)
+            .font(theme::semibold(23.0))
+            .color(theme::FG),
+    );
+}
+
+fn body_text(text: &str) -> egui::RichText {
+    egui::RichText::new(text).size(13.5).color(theme::TEXT_2)
+}
+
+/// The one high-emphasis button per screen.
 fn primary_button(ui: &mut egui::Ui, text: &str, min: egui::Vec2) -> egui::Response {
-    let accent = theme::accent(ui);
-    let on_accent = if ui.visuals().dark_mode {
-        egui::Color32::from_rgb(4, 47, 44)
-    } else {
-        egui::Color32::WHITE
-    };
     ui.add(
-        egui::Button::new(egui::RichText::new(text).strong().color(on_accent))
-            .fill(accent)
-            .stroke(egui::Stroke::NONE)
-            .min_size(min),
+        egui::Button::new(
+            egui::RichText::new(text)
+                .font(theme::medium(13.5))
+                .color(theme::BG),
+        )
+        .fill(theme::FG)
+        .stroke(egui::Stroke::NONE)
+        .corner_radius(egui::CornerRadius::same(6))
+        .min_size(min),
     )
 }
 
-/// Small accent-subtle pill with accent text (welcome privacy line).
-fn accent_chip(ui: &mut egui::Ui, text: &str) {
-    let accent = theme::accent(ui);
-    let bg = accent_subtle(ui);
-    egui::Frame::default()
-        .fill(bg)
-        .corner_radius(egui::CornerRadius::same(14))
-        .inner_margin(egui::Margin::symmetric(12, 6))
-        .show(ui, |ui| {
-            ui.label(egui::RichText::new(text).color(accent).small().strong());
-        });
+/// Green status chip, mono uppercase (welcome privacy line). Painted at
+/// exact content size — a Frame would stretch to the column width here.
+fn status_chip(ui: &mut egui::Ui, text: &str) {
+    let galley = ui.fonts(|f| {
+        f.layout_no_wrap(text.to_uppercase(), theme::mono_medium(10.5), theme::GREEN)
+    });
+    let pad = egui::vec2(10.0, 5.0);
+    let (rect, _) =
+        ui.allocate_exact_size(galley.size() + pad * 2.0, egui::Sense::hover());
+    let p = ui.painter();
+    p.rect_filled(rect, egui::CornerRadius::same(4), theme::tint(theme::GREEN));
+    p.galley(rect.min + pad, galley, theme::GREEN);
 }
 
 /// Error state: tinted panel, error text, optional recovery hint.
 fn error_box(ui: &mut egui::Ui, msg: &str, hint: Option<&str>) {
-    let err = ui.visuals().error_fg_color;
-    let bg = egui::Color32::from_rgba_unmultiplied(err.r(), err.g(), err.b(), 18);
     egui::Frame::default()
-        .fill(bg)
-        .corner_radius(egui::CornerRadius::same(8))
+        .fill(theme::tint(theme::RED))
+        .corner_radius(egui::CornerRadius::same(6))
         .inner_margin(12.0)
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.colored_label(err, msg);
+            ui.colored_label(theme::RED, msg);
             if let Some(h) = hint {
                 ui.add_space(4.0);
-                ui.label(egui::RichText::new(h).weak().small());
+                ui.label(egui::RichText::new(h).small().color(theme::MUTED));
             }
         });
 }
 
-/// "Hold ⟨Right Alt⟩ and speak. Release to type." with a drawn kbd chip.
-fn hotkey_line(ui: &mut egui::Ui) {
-    let text_color = ui.visuals().text_color();
-    let strong = ui.visuals().strong_text_color();
-    let chip_fill = ui.visuals().faint_bg_color;
-    let border = ui.visuals().widgets.noninteractive.bg_stroke.color;
+/// "Hold ⟨key⟩ and speak. Release to type." with the amber hotkey chip.
+fn hotkey_line(ui: &mut egui::Ui, key_label: &str) {
     let body = egui::TextStyle::Body.resolve(ui.style());
 
-    let pre = ui
-        .fonts(|f| f.layout_no_wrap("Hold".into(), body.clone(), text_color));
-    let post = ui
-        .fonts(|f| f.layout_no_wrap("and speak. Release to type.".into(), body, text_color));
-    let key = ui.fonts(|f| f.layout_no_wrap("Right Alt".into(), egui::FontId::monospace(13.0), strong));
+    let pre = ui.fonts(|f| f.layout_no_wrap("Hold".into(), body.clone(), theme::TEXT_2));
+    let post =
+        ui.fonts(|f| f.layout_no_wrap("and speak. Release to type.".into(), body, theme::TEXT_2));
+    let key = ui.fonts(|f| {
+        f.layout_no_wrap(
+            key_label.to_uppercase(),
+            theme::mono_medium(12.0),
+            theme::AMBER,
+        )
+    });
 
     let pad = egui::vec2(10.0, 6.0);
     let chip_size = key.size() + pad * 2.0;
@@ -386,18 +396,18 @@ fn hotkey_line(ui: &mut egui::Ui) {
     let cy = rect.center().y;
     let mut x = rect.left();
 
-    p.galley(egui::pos2(x, cy - pre.size().y / 2.0), pre.clone(), text_color);
+    p.galley(egui::pos2(x, cy - pre.size().y / 2.0), pre.clone(), theme::TEXT_2);
     x += pre.size().x + gap;
 
     let chip = egui::Rect::from_min_size(
         egui::pos2(x, cy - chip_size.y / 2.0 - 1.0),
         chip_size,
     );
-    p.rect_filled(chip, egui::CornerRadius::same(6), chip_fill);
+    p.rect_filled(chip, egui::CornerRadius::same(5), theme::tint(theme::AMBER));
     p.rect_stroke(
         chip,
-        egui::CornerRadius::same(6),
-        egui::Stroke::new(1.0, border),
+        egui::CornerRadius::same(5),
+        egui::Stroke::new(1.0, theme::RING),
         egui::StrokeKind::Inside,
     );
     // the "key" bottom edge
@@ -406,18 +416,19 @@ fn hotkey_line(ui: &mut egui::Ui) {
             egui::pos2(chip.left() + 5.0, chip.bottom() + 1.5),
             egui::pos2(chip.right() - 5.0, chip.bottom() + 1.5),
         ],
-        egui::Stroke::new(2.0, border),
+        egui::Stroke::new(2.0, theme::RING),
     );
-    p.galley(chip.min + pad, key, strong);
+    p.galley(chip.min + pad, key, theme::AMBER);
     x += chip_size.x + gap;
 
-    p.galley(egui::pos2(x, cy - post.size().y / 2.0), post, text_color);
+    p.galley(egui::pos2(x, cy - post.size().y / 2.0), post, theme::TEXT_2);
 }
 
 // ---------------------------------------------------------------------------
 
 impl eframe::App for Wizard {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.shot.tick(ctx);
         // poll background work
         let mut advance_to_download = false;
         match &mut self.step {
@@ -459,7 +470,6 @@ impl eframe::App for Wizard {
         }
 
         let step_idx = self.step.index();
-        let panel_fill = ctx.style().visuals.panel_fill;
         let mut next: Option<Step> = None;
         let model = self.model;
 
@@ -468,7 +478,7 @@ impl eframe::App for Wizard {
             .show_separator_line(false)
             .frame(
                 egui::Frame::default()
-                    .fill(panel_fill)
+                    .fill(theme::BG)
                     .inner_margin(egui::Margin { left: 24, right: 24, top: 8, bottom: 40 }),
             )
             .show(ctx, |ui| {
@@ -489,10 +499,12 @@ impl eframe::App for Wizard {
                     }
                     Step::Permission { granting, rx, error } => {
                         if *granting {
-                            ui.add(egui::Spinner::new().size(20.0).color(theme::accent(ui)));
+                            ui.add(egui::Spinner::new().size(20.0).color(theme::AMBER));
                             ui.add_space(4.0);
                             ui.label(
-                                egui::RichText::new("Waiting for authorization…").weak().small(),
+                                egui::RichText::new("Waiting for authorization…")
+                                    .small()
+                                    .color(theme::MUTED),
                             );
                         } else if primary_button(
                             ui,
@@ -518,8 +530,8 @@ impl eframe::App for Wizard {
                             egui::RichText::new(
                                 "This happens once — later launches start straight away.",
                             )
-                            .weak()
-                            .small(),
+                            .small()
+                            .color(theme::MUTED),
                         );
                     }
                     Step::Done => {
@@ -535,7 +547,7 @@ impl eframe::App for Wizard {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::default()
-                    .fill(panel_fill)
+                    .fill(theme::BG)
                     .inner_margin(egui::Margin::symmetric(24, 0)),
             )
             .show(ctx, |ui| {
@@ -543,11 +555,11 @@ impl eframe::App for Wizard {
                     ui.add_space(32.0);
                     step_dots(ui, step_idx);
                     ui.add_space(10.0);
-                    ui.label(
-                        egui::RichText::new(format!("Step {} of 4", step_idx + 1))
-                            .weak()
-                            .small(),
-                    );
+                    ui.label(theme::mono_upper(
+                        &format!("step {} of 4", step_idx + 1),
+                        10.0,
+                        theme::MUTED,
+                    ));
                     ui.add_space(24.0);
                     let icon = match &self.step {
                         Step::Welcome => StepIcon::Mic,
@@ -560,18 +572,16 @@ impl eframe::App for Wizard {
 
                     match &mut self.step {
                         Step::Welcome => {
-                            ui.label(
-                                egui::RichText::new("Welcome to WhisprCatch").size(26.0).strong(),
-                            );
+                            title(ui, "Welcome to WhisprCatch");
                             ui.add_space(12.0);
                             step_body(ui, |ui| {
-                                ui.label(
+                                ui.label(body_text(
                                     "Push-to-talk dictation for your desktop. Hold a key, \
                                      speak, and your words are typed wherever your cursor is.",
-                                );
+                                ));
                             });
                             ui.add_space(16.0);
-                            accent_chip(ui, "Everything stays on this device");
+                            status_chip(ui, "Everything stays on this device");
                             ui.add_space(16.0);
                             step_body(ui, |ui| {
                                 ui.label(
@@ -579,13 +589,13 @@ impl eframe::App for Wizard {
                                         "Two quick steps: keyboard access, then the speech \
                                          model. You won't see this window again.",
                                     )
-                                    .weak()
-                                    .small(),
+                                    .small()
+                                    .color(theme::MUTED),
                                 );
                             });
                         }
                         Step::Permission { error, .. } => {
-                            ui.label(egui::RichText::new("Keyboard access").size(26.0).strong());
+                            title(ui, "Keyboard access");
                             ui.add_space(12.0);
                             let perm_body = if cfg!(target_os = "macos") {
                                 "macOS needs your permission for WhisprCatch to see the \
@@ -597,7 +607,7 @@ impl eframe::App for Wizard {
                                  for your password once."
                             };
                             step_body(ui, |ui| {
-                                ui.label(perm_body);
+                                ui.label(body_text(perm_body));
                             });
                             if let Some(e) = error {
                                 ui.add_space(16.0);
@@ -636,7 +646,7 @@ impl eframe::App for Wizard {
                                     ctx2.request_repaint();
                                 });
                             }
-                            ui.label(egui::RichText::new("Speech model").size(26.0).strong());
+                            title(ui, "Speech model");
                             ui.add_space(12.0);
                             let dl_line = format!(
                                 "Downloading {} — about {} MB, one time. Everything runs \
@@ -645,7 +655,7 @@ impl eframe::App for Wizard {
                                 model.download_mb(),
                             );
                             step_body(ui, |ui| {
-                                ui.label(dl_line);
+                                ui.label(body_text(&dl_line));
                             });
                             ui.add_space(24.0);
                             let frac = if *total > 0 {
@@ -654,22 +664,22 @@ impl eframe::App for Wizard {
                                 0.0
                             };
                             let mb_line = format!(
-                                "{:.0}%  ·  {:.0} / {:.0} MB — {}",
+                                "{:.0}% · {:.0} / {:.0} MB · {}",
                                 frac * 100.0,
                                 *done as f64 / 1e6,
                                 *total as f64 / 1e6,
-                                if file.is_empty() { "preparing…" } else { file.as_str() }
+                                if file.is_empty() { "preparing" } else { file.as_str() }
                             );
                             let err = error.clone();
                             step_body(ui, |ui| {
                                 ui.add(
                                     egui::ProgressBar::new(frac)
-                                        .desired_height(10.0)
-                                        .fill(theme::accent(ui))
-                                        .animate(err.is_none()),
+                                        .desired_height(6.0)
+                                        .fill(theme::GREEN)
+                                        .corner_radius(egui::CornerRadius::same(4)),
                                 );
                                 ui.add_space(8.0);
-                                ui.label(egui::RichText::new(mb_line).weak().small());
+                                ui.label(theme::mono_upper(&mb_line, 10.0, theme::MUTED));
                                 if let Some(e) = err {
                                     ui.add_space(16.0);
                                     error_box(
@@ -684,26 +694,23 @@ impl eframe::App for Wizard {
                             });
                         }
                         Step::Done => {
-                            ui.label(egui::RichText::new("You're all set.").size(26.0).strong());
+                            title(ui, "You're all set.");
                             ui.add_space(16.0);
-                            hotkey_line(ui);
+                            hotkey_line(ui, &self.key_label);
                             ui.add_space(20.0);
-                            let accent = theme::accent(ui);
                             ui.allocate_ui_with_layout(
                                 egui::vec2(300.0, 0.0),
                                 egui::Layout::top_down(egui::Align::Min),
                                 |ui| {
                                     ui.spacing_mut().item_spacing.y = 8.0;
-                                    for line in [
-                                        "Text lands wherever your cursor is.",
-                                        "A small pill shows while it listens.",
-                                        "History and settings live in the tray.",
+                                    for (dot, line) in [
+                                        (theme::GREEN, "Text lands wherever your cursor is."),
+                                        (theme::RED, "A small pill shows while it listens."),
+                                        (theme::AMBER, "History and settings live in the tray."),
                                     ] {
                                         ui.horizontal(|ui| {
-                                            ui.label(
-                                                egui::RichText::new("•").color(accent).strong(),
-                                            );
-                                            ui.label(line);
+                                            theme::led(ui, dot, false);
+                                            ui.label(body_text(line));
                                         });
                                     }
                                 },
@@ -713,8 +720,8 @@ impl eframe::App for Wizard {
                                 egui::RichText::new(
                                     "Built for people who think faster than they type.",
                                 )
-                                .weak()
                                 .small()
+                                .color(theme::MUTED)
                                 .italics(),
                             );
                         }
@@ -739,9 +746,8 @@ impl eframe::App for Wizard {
 /// Small fatal-error window for desktop launches (no terminal to print to).
 /// macOS surfaces failures via a notification instead (GUI must be main-thread).
 #[cfg_attr(target_os = "macos", allow(dead_code))]
-pub fn error_window(message: &str, theme_pref: &str) {
+pub fn error_window(message: &str) {
     let msg = message.to_string();
-    let pref = theme_pref.to_string();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([460.0, 240.0])
@@ -753,7 +759,8 @@ pub fn error_window(message: &str, theme_pref: &str) {
         "WhisprCatch — error",
         options,
         Box::new(move |cc| {
-            theme::apply(&cc.egui_ctx, &pref);
+            theme::apply(&cc.egui_ctx);
+            theme::install_fonts(&cc.egui_ctx);
             Ok(Box::new(ErrorApp { msg }) as Box<dyn eframe::App>)
         }),
     );
@@ -766,18 +773,24 @@ struct ErrorApp {
 
 impl eframe::App for ErrorApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let panel_fill = ctx.style().visuals.panel_fill;
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::default()
-                    .fill(panel_fill)
+                    .fill(theme::BG)
                     .inner_margin(egui::Margin::same(20)),
             )
             .show(ctx, |ui| {
-                ui.label(egui::RichText::new("Something went wrong").size(17.0).strong());
+                ui.horizontal(|ui| {
+                    theme::led(ui, theme::RED, false);
+                    ui.label(
+                        egui::RichText::new("Something went wrong")
+                            .font(theme::semibold(15.0))
+                            .color(theme::FG),
+                    );
+                });
                 ui.add_space(8.0);
                 egui::ScrollArea::vertical().max_height(120.0).show(ui, |ui| {
-                    ui.label(&self.msg);
+                    ui.label(egui::RichText::new(&self.msg).color(theme::TEXT_2));
                 });
                 ui.add_space(12.0);
                 if ui.button("Close").clicked() {
