@@ -1,17 +1,25 @@
 //! Floating recording indicator — a small always-on-top pill at the bottom
-//! center of the screen while dictating (Wispr Flow style). Runs as its own
-//! process (`whisper-catch overlay`): the daemon spawns it on key-down,
-//! writes a line to its stdin when transcription starts, and closes stdin
-//! (EOF) to dismiss it.
+//! center of the screen while dictating. Runs as its own process
+//! (`whisper-catch overlay`): the daemon spawns it on key-down, writes a
+//! line to its stdin when transcription starts, and closes stdin (EOF) to
+//! dismiss it.
+//!
+//! Look per docs/DESIGN.md: dark translucent rounded-full pill with a subtle
+//! ring. Listening = red pulsing LED + 4-bar waveform + label + elapsed mono
+//! timer behind a hairline. Transcribing = amber spinner + label + 3-dot
+//! progress.
 
 use std::io::BufRead;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
 use eframe::egui;
 
-const W: f32 = 172.0;
-const H: f32 = 48.0;
+use crate::theme;
+
+const W: f32 = 232.0;
+const H: f32 = 40.0;
 
 const STATE_LISTENING: u8 = 0;
 const STATE_TRANSCRIBING: u8 = 1;
@@ -40,6 +48,7 @@ pub fn run() -> anyhow::Result<()> {
         "WhisprCatch",
         options,
         Box::new(move |cc| {
+            theme::install_fonts(&cc.egui_ctx);
             // stdin watcher: any line -> transcribing, EOF -> done
             let ctx = cc.egui_ctx.clone();
             let s = st.clone();
@@ -57,7 +66,9 @@ pub fn run() -> anyhow::Result<()> {
             });
             Ok(Box::new(Overlay {
                 state: st,
+                started: Instant::now(),
                 position_frames: 0,
+                shot: crate::shot::Shot::from_env(),
             }) as Box<dyn eframe::App>)
         }),
     )
@@ -66,9 +77,12 @@ pub fn run() -> anyhow::Result<()> {
 
 struct Overlay {
     state: Arc<AtomicU8>,
+    /// Recording start ≈ overlay spawn (daemon spawns us on key-down).
+    started: Instant,
     /// Re-assert the position for the first frames — some WMs override the
     /// first move request, leaving the pill wherever it was initially placed.
     position_frames: u32,
+    shot: crate::shot::Shot,
 }
 
 impl eframe::App for Overlay {
@@ -77,6 +91,7 @@ impl eframe::App for Overlay {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.shot.tick(ctx);
         if self.state.load(Ordering::Relaxed) == STATE_DONE {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
@@ -105,67 +120,93 @@ impl eframe::App for Overlay {
             .show(ctx, |ui| {
                 let rect = ui.max_rect();
                 let painter = ui.painter();
+                // pill: zinc-950 at ~92%, subtle white ring
                 painter.rect_filled(
                     rect,
                     H / 2.0,
-                    egui::Color32::from_rgba_unmultiplied(16, 20, 30, 235),
+                    egui::Color32::from_rgba_unmultiplied(9, 9, 11, 235),
                 );
                 painter.rect_stroke(
                     rect.shrink(0.5),
                     H / 2.0,
-                    egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(94, 234, 212, 60)),
+                    egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(255, 255, 255, 45)),
                     egui::StrokeKind::Inside,
                 );
 
-                let center_y = rect.center().y;
+                let cy = rect.center().y;
+                // right block starts after a hairline separator
+                let sep_x = rect.right() - 62.0;
+                painter.vline(
+                    sep_x,
+                    egui::Rangef::new(cy - 9.0, cy + 9.0),
+                    egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(255, 255, 255, 26)),
+                );
+
                 if transcribing {
-                    // spinner + label
-                    let spin = egui::pos2(rect.left() + 26.0, center_y);
-                    for k in 0..8 {
-                        let a = t as f32 * 6.0 + k as f32 * std::f32::consts::FRAC_PI_4;
-                        let alpha = ((k as f32 / 8.0) * 200.0) as u8;
-                        painter.circle_filled(
-                            spin + egui::vec2(a.cos() * 8.0, a.sin() * 8.0),
-                            2.2,
-                            egui::Color32::from_rgba_unmultiplied(94, 234, 212, alpha),
-                        );
-                    }
+                    // amber spinner (1s linear) + label + 3-dot progress
+                    let spin = egui::pos2(rect.left() + 22.0, cy);
+                    let a0 = (t % 1.0) as f32 * std::f32::consts::TAU;
+                    let pts: Vec<egui::Pos2> = (0..=20)
+                        .map(|i| {
+                            let a = a0 + i as f32 / 20.0 * std::f32::consts::TAU * 0.72;
+                            spin + egui::vec2(a.cos() * 6.5, a.sin() * 6.5)
+                        })
+                        .collect();
+                    painter.add(egui::Shape::line(
+                        pts,
+                        egui::Stroke::new(2.0, theme::AMBER),
+                    ));
                     painter.text(
-                        egui::pos2(rect.left() + 46.0, center_y),
+                        egui::pos2(rect.left() + 40.0, cy),
                         egui::Align2::LEFT_CENTER,
                         "Transcribing…",
-                        egui::FontId::proportional(14.0),
-                        egui::Color32::from_rgb(230, 233, 240),
+                        theme::medium(13.0),
+                        theme::FG,
                     );
-                } else {
-                    // pulsing red dot + animated level bars
-                    let pulse = (0.6 + 0.4 * (t * 4.0).sin() as f32).clamp(0.0, 1.0);
-                    painter.circle_filled(
-                        egui::pos2(rect.left() + 26.0, center_y),
-                        6.0 + pulse * 2.0,
-                        egui::Color32::from_rgba_unmultiplied(239, 68, 68, 180 + (pulse * 75.0) as u8),
-                    );
-                    painter.text(
-                        egui::pos2(rect.left() + 46.0, center_y),
-                        egui::Align2::LEFT_CENTER,
-                        "Listening…",
-                        egui::FontId::proportional(14.0),
-                        egui::Color32::from_rgb(230, 233, 240),
-                    );
-                    // little animated bars on the right
-                    for k in 0..4 {
-                        let phase = t * 7.0 + k as f64 * 1.1;
-                        let h = 5.0 + 9.0 * (phase.sin().abs()) as f32;
-                        let x = rect.right() - 44.0 + k as f32 * 8.0;
-                        painter.rect_filled(
-                            egui::Rect::from_center_size(
-                                egui::pos2(x, center_y),
-                                egui::vec2(4.0, h),
-                            ),
-                            2.0,
-                            egui::Color32::from_rgb(94, 234, 212),
+                    // 3 dots, sequential pulse
+                    for k in 0..3 {
+                        let phase = (t * 2.0 - k as f64 * 0.25).fract();
+                        let on = (1.0 - phase as f32).clamp(0.25, 1.0);
+                        painter.circle_filled(
+                            egui::pos2(sep_x + 19.0 + k as f32 * 12.0, cy),
+                            2.5,
+                            theme::AMBER.linear_multiply(on),
                         );
                     }
+                } else {
+                    // red LED, 2s ease pulse + soft halo
+                    let pulse = 0.4 + 0.6 * (0.5 + 0.5 * (t * std::f64::consts::TAU / 2.0).cos() as f32);
+                    let led = egui::pos2(rect.left() + 22.0, cy);
+                    painter.circle_filled(led, 8.0, theme::RED.linear_multiply(0.18 * pulse));
+                    painter.circle_filled(led, 4.0, theme::RED.linear_multiply(0.55 + 0.45 * pulse));
+
+                    // 4-bar waveform
+                    for k in 0..4 {
+                        let phase = t * 6.3 + k as f64 * 1.7;
+                        let h = 4.0 + 10.0 * phase.sin().abs() as f32;
+                        let x = rect.left() + 40.0 + k as f32 * 7.0;
+                        painter.rect_filled(
+                            egui::Rect::from_center_size(egui::pos2(x, cy), egui::vec2(3.0, h)),
+                            1.5,
+                            theme::RED,
+                        );
+                    }
+                    painter.text(
+                        egui::pos2(rect.left() + 72.0, cy),
+                        egui::Align2::LEFT_CENTER,
+                        "Listening…",
+                        theme::medium(13.0),
+                        theme::FG,
+                    );
+                    // elapsed timer, mono, right-aligned
+                    let secs = self.started.elapsed().as_secs();
+                    painter.text(
+                        egui::pos2(rect.right() - 16.0, cy),
+                        egui::Align2::RIGHT_CENTER,
+                        format!("{}:{:02}", secs / 60, secs % 60),
+                        egui::FontId::monospace(12.0),
+                        egui::Color32::from_rgb(161, 161, 170),
+                    );
                 }
             });
 

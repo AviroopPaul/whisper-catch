@@ -2,6 +2,7 @@ mod autostart;
 mod config;
 mod overlay;
 mod settings_app;
+mod shot;
 mod theme;
 mod wizard;
 
@@ -62,7 +63,11 @@ enum Cmd {
         no_tray: bool,
     },
     /// Open the settings & history window
-    Settings,
+    Settings {
+        /// Tab to open: history (default) or settings
+        #[arg(long)]
+        tab: Option<String>,
+    },
     /// Internal: floating recording indicator (spawned by the daemon)
     #[command(hide = true)]
     Overlay,
@@ -85,7 +90,7 @@ fn main() -> Result<()> {
 
     // subcommands that don't need the engine
     match &cmd {
-        Cmd::Settings => return settings_app::run(),
+        Cmd::Settings { tab } => return settings_app::run(tab.clone()),
         Cmd::Overlay => return overlay::run(),
         Cmd::DownloadModel => {
             let model_id = wc_models::ModelId::parse(&cfg.model);
@@ -114,13 +119,13 @@ fn main() -> Result<()> {
                 // already running — clicking the app icon should do something
                 // useful, so open the settings window instead
                 log::info!("daemon already running; opening settings");
-                return settings_app::run();
+                return settings_app::run(None);
             }
         };
         let model_id = wc_models::ModelId::parse(&cfg.model);
         if wizard::need_setup(model_id) && cli.model.is_none() && cfg.model_dir.is_none() {
             if gui_session() {
-                match wizard::run(&cfg.theme, model_id)? {
+                match wizard::run(model_id, config::key_label(&cfg.key))? {
                     wizard::Outcome::Ready => {}
                     wizard::Outcome::Cancelled => return Ok(()),
                 }
@@ -175,43 +180,51 @@ fn main() -> Result<()> {
             print_only,
             no_tray,
         } => {
-            let key = PttKey::parse(key.as_deref().unwrap_or(&cfg.key))?;
+            let key_slug = key.as_deref().unwrap_or(&cfg.key).to_string();
+            let key = PttKey::parse(&key_slug)?;
             let state = Arc::new(AppState::new());
+            let tray_info = wc_tray::TrayInfo {
+                model: model_id.label().to_string(),
+                hotkey: config::key_label(&key_slug).to_string(),
+            };
 
             #[cfg(target_os = "macos")]
             if no_tray {
                 // Headless CLI use — run the loop on the main thread, no menu bar.
-                run_ptt(state, engine, key, print_only, true, &cfg)?;
+                run_ptt(state, engine, key, print_only, true, &cfg, tray_info)?;
             } else {
                 // The macOS menu-bar tray must own the main thread, so the
                 // dictation loop runs on a worker while the tray blocks here.
                 let self_exe = std::env::current_exe().context("resolving own binary path")?;
                 let worker_state = state.clone();
                 let cfg2 = cfg.clone();
+                let info2 = tray_info.clone();
                 std::thread::spawn(move || {
-                    if let Err(e) = run_ptt(worker_state, engine, key, print_only, true, &cfg2) {
+                    if let Err(e) =
+                        run_ptt(worker_state, engine, key, print_only, true, &cfg2, info2)
+                    {
                         log::error!("dictation loop stopped: {e:#}");
                         if gui_session() {
                             notify("WhisprCatch stopped", &format!("{e:#}"));
                         }
                     }
                 });
-                wc_tray::run_main(state, self_exe)?;
+                wc_tray::run_main(state, self_exe, tray_info)?;
             }
 
             #[cfg(not(target_os = "macos"))]
             {
-                let res = run_ptt(state, engine, key, print_only, no_tray, &cfg);
+                let res = run_ptt(state, engine, key, print_only, no_tray, &cfg, tray_info);
                 if let Err(e) = &res {
                     if gui_session() {
                         notify("WhisprCatch stopped", &format!("{e:#}"));
-                        wizard::error_window(&format!("{e:#}"), &cfg.theme);
+                        wizard::error_window(&format!("{e:#}"));
                     }
                 }
                 res?;
             }
         }
-        Cmd::Settings | Cmd::Overlay | Cmd::DownloadModel | Cmd::Autostart { .. } => {
+        Cmd::Settings { .. } | Cmd::Overlay | Cmd::DownloadModel | Cmd::Autostart { .. } => {
             unreachable!()
         }
     }
@@ -321,6 +334,7 @@ fn join_delta(committed: usize, words: &[String]) -> String {
     s
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_ptt(
     state: Arc<AppState>,
     mut engine: Engine,
@@ -328,11 +342,12 @@ fn run_ptt(
     print_only: bool,
     no_tray: bool,
     cfg: &config::Config,
+    tray_info: wc_tray::TrayInfo,
 ) -> Result<()> {
     let tray = if no_tray {
         None
     } else {
-        match wc_tray::spawn(state.clone()) {
+        match wc_tray::spawn(state.clone(), tray_info) {
             Ok(t) => Some(t),
             Err(e) => {
                 log::warn!("{e:#} — continuing without tray");

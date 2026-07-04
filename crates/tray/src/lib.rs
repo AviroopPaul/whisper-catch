@@ -1,10 +1,25 @@
-//! System tray (StatusNotifierItem via ksni on Linux).
-//! GNOME needs the AppIndicator extension; app stays usable without a tray.
+//! System tray (StatusNotifierItem via ksni on Linux; NSStatusItem via
+//! tray-icon on macOS). GNOME needs the AppIndicator extension; app stays
+//! usable without a tray.
+//!
+//! Menu composition per docs/DESIGN.md: status header (state + model +
+//! hotkey), Listening toggle, Open History / Preferences…, divider, Quit.
+//! Native menus can't be themed, so the design language shows up in
+//! structure and icon states (idle outline / recording red) instead.
 
 use std::sync::Arc;
 
 use anyhow::Result;
 use wc_core::state::AppState;
+
+/// Static facts the tray shows in its header (resolved at daemon startup).
+#[derive(Clone, Debug, Default)]
+pub struct TrayInfo {
+    /// Human model label, e.g. "Parakeet 0.6B".
+    pub model: String,
+    /// Human hotkey label, e.g. "Right Alt".
+    pub hotkey: String,
+}
 
 #[cfg(target_os = "linux")]
 mod linux {
@@ -15,6 +30,7 @@ mod linux {
 
     pub struct WcTray {
         state: Arc<AppState>,
+        info: TrayInfo,
         /// Own binary path, resolved at startup — current_exe() goes stale
         /// ("… (deleted)") once a package upgrade replaces the binary.
         exe: std::path::PathBuf,
@@ -55,8 +71,29 @@ mod linux {
         }
 
         fn menu(&self) -> Vec<MenuItem<Self>> {
-            let s = *self.state.stats.lock().unwrap();
+            // status header: state + model + hotkey (ksni rebuilds the menu on
+            // every refresh(), so this stays live)
+            let status = if self.state.recording.load(Ordering::Relaxed) {
+                "Recording"
+            } else if self.state.is_enabled() {
+                "Ready"
+            } else {
+                "Paused"
+            };
             vec![
+                StandardItem {
+                    label: format!("{status} — {}", self.info.model),
+                    enabled: false,
+                    ..Default::default()
+                }
+                .into(),
+                StandardItem {
+                    label: format!("Hold {} to dictate", self.info.hotkey),
+                    enabled: false,
+                    ..Default::default()
+                }
+                .into(),
+                MenuItem::Separator,
                 CheckmarkItem {
                     label: "Listening".into(),
                     checked: self.state.is_enabled(),
@@ -70,27 +107,35 @@ mod linux {
                 .into(),
                 MenuItem::Separator,
                 StandardItem {
-                    label: format!("{} words · {} utterances", s.words, s.utterances),
-                    enabled: false,
-                    ..Default::default()
-                }
-                .into(),
-                MenuItem::Separator,
-                StandardItem {
-                    label: "History & Settings…".into(),
-                    icon_name: "preferences-system".into(),
+                    label: "Open History".into(),
+                    icon_name: "document-open-recent".into(),
                     activate: Box::new(|this: &mut Self| {
                         if let Err(e) =
                             std::process::Command::new(&this.exe).arg("settings").spawn()
                         {
-                            log::error!("failed to open settings: {e}");
+                            log::error!("failed to open history: {e}");
                         }
                     }),
                     ..Default::default()
                 }
                 .into(),
                 StandardItem {
-                    label: "Quit".into(),
+                    label: "Preferences…".into(),
+                    icon_name: "preferences-system".into(),
+                    activate: Box::new(|this: &mut Self| {
+                        if let Err(e) = std::process::Command::new(&this.exe)
+                            .args(["settings", "--tab", "settings"])
+                            .spawn()
+                        {
+                            log::error!("failed to open preferences: {e}");
+                        }
+                    }),
+                    ..Default::default()
+                }
+                .into(),
+                MenuItem::Separator,
+                StandardItem {
+                    label: "Quit WhisprCatch".into(),
                     icon_name: "application-exit".into(),
                     activate: Box::new(|_| std::process::exit(0)),
                     ..Default::default()
@@ -102,9 +147,9 @@ mod linux {
 
     /// Spawns the tray. Returns a handle used to refresh icon/menu after
     /// state changes. Fails gracefully when no StatusNotifierWatcher exists.
-    pub fn spawn(state: Arc<AppState>) -> Result<TrayHandle> {
+    pub fn spawn(state: Arc<AppState>, info: TrayInfo) -> Result<TrayHandle> {
         let exe = std::env::current_exe().unwrap_or_else(|_| "whisper-catch".into());
-        let handle = WcTray { state, exe }
+        let handle = WcTray { state, info, exe }
             .spawn()
             .map_err(|e| anyhow::anyhow!("tray unavailable: {e}"))?;
         Ok(TrayHandle(handle))
@@ -142,28 +187,41 @@ mod macos {
 
     /// Not used on macOS — the tray must own the main run loop. Call
     /// [`run_main`] from the main thread instead and run dictation elsewhere.
-    pub fn spawn(_state: Arc<AppState>) -> Result<TrayHandle> {
+    pub fn spawn(_state: Arc<AppState>, _info: TrayInfo) -> Result<TrayHandle> {
         anyhow::bail!("use wc_tray::run_main on macOS")
     }
 
     /// Builds the menu-bar item and runs the AppKit event loop. **Blocks
     /// forever** and MUST be called on the main thread. The dictation loop runs
     /// on another thread and shares `state` for the Listening toggle.
-    pub fn run_main(state: Arc<AppState>, exe: PathBuf) -> Result<()> {
+    pub fn run_main(state: Arc<AppState>, exe: PathBuf, info: TrayInfo) -> Result<()> {
         let mtm = MainThreadMarker::new()
             .ok_or_else(|| anyhow::anyhow!("run_main must be called on the main thread"))?;
         let app = NSApplication::sharedApplication(mtm);
         app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
 
+        // header: model + hotkey (disabled rows; native menus can't be styled)
+        let header = MenuItem::with_id("header", &info.model, false, None);
+        let hint = MenuItem::with_id(
+            "hint",
+            format!("Hold {} to dictate", info.hotkey),
+            false,
+            None,
+        );
         let toggle =
             CheckMenuItem::with_id("toggle", "Listening", true, state.is_enabled(), None);
-        let settings = MenuItem::with_id("settings", "History & Settings…", true, None);
+        let history = MenuItem::with_id("history", "Open History", true, None);
+        let prefs = MenuItem::with_id("prefs", "Preferences…", true, None);
         let quit = MenuItem::with_id("quit", "Quit WhisprCatch", true, None);
 
         let menu = Menu::new();
+        menu.append(&header)?;
+        menu.append(&hint)?;
+        menu.append(&PredefinedMenuItem::separator())?;
         menu.append(&toggle)?;
         menu.append(&PredefinedMenuItem::separator())?;
-        menu.append(&settings)?;
+        menu.append(&history)?;
+        menu.append(&prefs)?;
         menu.append(&PredefinedMenuItem::separator())?;
         menu.append(&quit)?;
 
@@ -185,9 +243,16 @@ mod macos {
                     let now = !st.is_enabled();
                     st.enabled.store(now, std::sync::atomic::Ordering::Relaxed);
                     log::info!("listening {}", if now { "enabled" } else { "disabled" });
-                } else if ev.id == "settings" {
+                } else if ev.id == "history" {
                     if let Err(e) = std::process::Command::new(&exe).arg("settings").spawn() {
-                        log::error!("failed to open settings: {e}");
+                        log::error!("failed to open history: {e}");
+                    }
+                } else if ev.id == "prefs" {
+                    if let Err(e) = std::process::Command::new(&exe)
+                        .args(["settings", "--tab", "settings"])
+                        .spawn()
+                    {
+                        log::error!("failed to open preferences: {e}");
                     }
                 } else if ev.id == "quit" {
                     std::process::exit(0);
@@ -199,21 +264,41 @@ mod macos {
         Ok(())
     }
 
-    /// A small filled circle rendered as a template image (adapts to light/dark
-    /// menu bars). The real app icon ships in the `.app` bundle.
+    /// An 18×18 push-to-talk mic glyph rendered as a template image (adapts
+    /// to light/dark menu bars). The real app icon ships in the `.app` bundle.
     fn mic_icon() -> Icon {
         let (w, h) = (18u32, 18u32);
         let mut rgba = vec![0u8; (w * h * 4) as usize];
-        let (cx, cy, r) = (9.0f32, 9.0f32, 7.0f32);
-        for y in 0..h {
-            for x in 0..w {
-                let dx = x as f32 + 0.5 - cx;
-                let dy = y as f32 + 0.5 - cy;
-                if dx * dx + dy * dy <= r * r {
-                    let i = ((y * w + x) * 4) as usize;
-                    rgba[i + 3] = 255; // opaque black → template glyph
+        let mut set = |x: i32, y: i32, a: u8| {
+            if (0..w as i32).contains(&x) && (0..h as i32).contains(&y) {
+                let i = ((y as u32 * w + x as u32) * 4) as usize;
+                rgba[i + 3] = rgba[i + 3].max(a);
+            }
+        };
+        // capsule body: rounded rect x∈[6.5,11.5], y∈[1.5,9.5]
+        for y in 0..h as i32 {
+            for x in 0..w as i32 {
+                let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
+                // distance to capsule core segment (x=9, y from 4 to 7.5)
+                let cy = fy.clamp(4.0, 7.5);
+                let d = ((fx - 9.0).powi(2) + (fy - cy).powi(2)).sqrt();
+                if d <= 2.6 {
+                    set(x, y, 255);
+                }
+                // holder arc: ring r∈[4.6,5.8] around (9,8), lower half
+                let dr = ((fx - 9.0).powi(2) + (fy - 8.0).powi(2)).sqrt();
+                if fy >= 8.0 && (4.6..=5.8).contains(&dr) {
+                    set(x, y, 255);
                 }
             }
+        }
+        // stem + base
+        for y in 14..16 {
+            set(8, y, 255);
+            set(9, y, 255);
+        }
+        for x in 6..12 {
+            set(x, 16, 255);
         }
         Icon::from_rgba(rgba, w, h).expect("valid tray icon")
     }
@@ -231,6 +316,6 @@ impl TrayHandle {
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-pub fn spawn(_state: Arc<AppState>) -> Result<TrayHandle> {
+pub fn spawn(_state: Arc<AppState>, _info: TrayInfo) -> Result<TrayHandle> {
     anyhow::bail!("tray not implemented for this platform yet")
 }

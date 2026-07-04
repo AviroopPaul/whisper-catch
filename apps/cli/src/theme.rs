@@ -1,259 +1,270 @@
-//! Shared look & feel for all app windows.
+//! Shared look & feel for all app windows — "tactile engineer dark".
 //!
-//! Every color below comes from docs/DESIGN.md §2 — set centrally here so
-//! screens never hand-pick colors. Public API used by other windows:
-//! `apply(ctx, pref)`, `accent(ui)`, `card(ui)` (stable signatures), plus
-//! additive helpers (`install_icons`, `accent_button`, semantic colors).
+//! Every value comes from docs/DESIGN.md (app sections): dark-only zinc
+//! neutrals, three signal colors (red = recording, amber = processing,
+//! green = active), Geist / Geist Mono embedded in the binary, radii
+//! 4/6/10/14. Screens never hand-pick colors; they use the tokens and
+//! helpers below.
 
-use eframe::egui::{self, Color32};
+use eframe::egui::{self, Color32, FontFamily, FontId};
 
 // ---------------------------------------------------------------- palette
+// zinc neutrals (dark-only; the app ships without a light theme)
 
-/// Brand accent — matches the landing page teal.
-pub const ACCENT_DARK: Color32 = Color32::from_rgb(94, 234, 212); // teal-300
-pub const ACCENT_LIGHT: Color32 = Color32::from_rgb(13, 148, 136); // teal-600
+pub const BG: Color32 = Color32::from_rgb(9, 9, 11); // zinc-950 window
+pub const SURFACE: Color32 = Color32::from_rgb(24, 24, 27); // zinc-900 cards
+pub const SURFACE_2: Color32 = Color32::from_rgb(39, 39, 42); // zinc-800 raised
+pub const SURFACE_3: Color32 = Color32::from_rgb(52, 52, 58); // hover/active
+pub const FG: Color32 = Color32::from_rgb(232, 232, 235); // zinc-100/200
+pub const TEXT_2: Color32 = Color32::from_rgb(161, 161, 170); // zinc-400
+pub const MUTED: Color32 = Color32::from_rgb(113, 113, 122); // zinc-500
+/// 1px hairline — white at 8% (on zinc-950 ≈ rgb 29).
+pub const BORDER: Color32 = Color32::from_rgb(29, 29, 32);
+/// Focus/selected ring — white at 20%.
+pub const RING: Color32 = Color32::from_rgb(58, 58, 62);
 
-// Dark neutrals (cool slate)
-const D_BG0: Color32 = Color32::from_rgb(11, 14, 20); // window
-const D_BG1: Color32 = Color32::from_rgb(17, 21, 31); // cards / raised
-const D_BG2: Color32 = Color32::from_rgb(21, 26, 38); // inputs / buttons
-const D_BG_HOVER: Color32 = Color32::from_rgb(26, 32, 46);
-const D_BG_ACTIVE: Color32 = Color32::from_rgb(31, 38, 54);
-const D_BORDER: Color32 = Color32::from_rgb(35, 42, 58);
-const D_BORDER_STRONG: Color32 = Color32::from_rgb(51, 65, 85);
-const D_TEXT: Color32 = Color32::from_rgb(230, 233, 240);
-const D_ON_ACCENT: Color32 = Color32::from_rgb(4, 47, 44);
-const D_SUCCESS: Color32 = Color32::from_rgb(52, 211, 153);
-const D_ERROR: Color32 = Color32::from_rgb(248, 113, 113);
-const D_WARNING: Color32 = Color32::from_rgb(251, 191, 36);
+// signal colors — status only, never decoration
+pub const RED: Color32 = Color32::from_rgb(239, 68, 68); // recording
+pub const AMBER: Color32 = Color32::from_rgb(245, 158, 11); // processing / hotkey
+pub const GREEN: Color32 = Color32::from_rgb(16, 185, 129); // active / ok
 
-// Light neutrals
-const L_BG0: Color32 = Color32::from_rgb(248, 250, 252);
-const L_CARD: Color32 = Color32::from_rgb(255, 255, 255);
-const L_BG_HOVER: Color32 = Color32::from_rgb(241, 245, 249);
-const L_BG_ACTIVE: Color32 = Color32::from_rgb(226, 232, 240);
-const L_BORDER: Color32 = Color32::from_rgb(226, 232, 240);
-const L_BORDER_STRONG: Color32 = Color32::from_rgb(203, 213, 225);
-const L_TEXT: Color32 = Color32::from_rgb(15, 23, 42);
-const L_ON_ACCENT: Color32 = Color32::from_rgb(255, 255, 255);
-const L_SUCCESS: Color32 = Color32::from_rgb(5, 150, 105);
-const L_ERROR: Color32 = Color32::from_rgb(220, 38, 38);
-const L_WARNING: Color32 = Color32::from_rgb(217, 119, 6);
-
-// ------------------------------------------------------- semantic helpers
-
-pub fn accent(ui: &egui::Ui) -> Color32 {
-    if ui.visuals().dark_mode {
-        ACCENT_DARK
-    } else {
-        ACCENT_LIGHT
-    }
-}
-
-/// ~10% alpha accent — chip fills, icon plates, selected states.
-pub fn accent_subtle(ui: &egui::Ui) -> Color32 {
-    if ui.visuals().dark_mode {
-        Color32::from_rgba_unmultiplied(94, 234, 212, 26)
-    } else {
-        Color32::from_rgba_unmultiplied(13, 148, 136, 20)
-    }
-}
-
-/// Text color on top of an accent-filled surface.
-pub fn on_accent(ui: &egui::Ui) -> Color32 {
-    if ui.visuals().dark_mode {
-        D_ON_ACCENT
-    } else {
-        L_ON_ACCENT
-    }
-}
-
-pub fn success(ui: &egui::Ui) -> Color32 {
-    if ui.visuals().dark_mode {
-        D_SUCCESS
-    } else {
-        L_SUCCESS
-    }
-}
-
-/// Warning tone — use sparingly (DESIGN.md §2). Kept for other windows.
-#[allow(dead_code)]
-pub fn warning(ui: &egui::Ui) -> Color32 {
-    if ui.visuals().dark_mode {
-        D_WARNING
-    } else {
-        L_WARNING
-    }
-}
-
-/// 1px hairline color (matches card strokes).
-pub fn border(ui: &egui::Ui) -> Color32 {
-    if ui.visuals().dark_mode {
-        D_BORDER
-    } else {
-        L_BORDER
-    }
-}
-
-/// Hovered card/control border.
-pub fn border_strong(ui: &egui::Ui) -> Color32 {
-    if ui.visuals().dark_mode {
-        D_BORDER_STRONG
-    } else {
-        L_BORDER_STRONG
-    }
+/// `color` at ~12% alpha — chip fills behind signal-colored text.
+pub fn tint(color: Color32) -> Color32 {
+    Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 30)
 }
 
 // ------------------------------------------------------------------ fonts
 
-/// Adds the Phosphor icon font on top of egui's defaults so any window can
-/// render `egui_phosphor::regular::*` glyphs inline in text. Call once per
-/// context, after `eframe` is up (safe to call again — it just resets fonts).
-pub fn install_icons(ctx: &egui::Context) {
+/// Geist (sans) + Geist Mono, embedded; egui-phosphor appended for icons.
+/// Families: `Proportional` → Geist, `Monospace` → Geist Mono, plus named
+/// "GeistMedium" / "GeistSemiBold" / "GeistMonoMedium" for emphasis (egui's
+/// `strong()` only recolors — weight needs a family switch).
+pub fn install_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
+    let data: [(&str, &[u8]); 5] = [
+        ("geist", include_bytes!("../assets/fonts/Geist-Regular.ttf")),
+        ("geist-medium", include_bytes!("../assets/fonts/Geist-Medium.ttf")),
+        (
+            "geist-semibold",
+            include_bytes!("../assets/fonts/Geist-SemiBold.ttf"),
+        ),
+        (
+            "geist-mono",
+            include_bytes!("../assets/fonts/GeistMono-Regular.ttf"),
+        ),
+        (
+            "geist-mono-medium",
+            include_bytes!("../assets/fonts/GeistMono-Medium.ttf"),
+        ),
+    ];
+    for (name, bytes) in data {
+        fonts.font_data.insert(
+            name.to_owned(),
+            std::sync::Arc::new(egui::FontData::from_static(bytes)),
+        );
+    }
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+
+    fonts
+        .families
+        .get_mut(&FontFamily::Proportional)
+        .unwrap()
+        .insert(0, "geist".to_owned());
+    fonts
+        .families
+        .get_mut(&FontFamily::Monospace)
+        .unwrap()
+        .insert(0, "geist-mono".to_owned());
+
+    let prop = fonts.families[&FontFamily::Proportional].clone();
+    let mono = fonts.families[&FontFamily::Monospace].clone();
+    for (family, face, base) in [
+        ("GeistMedium", "geist-medium", &prop),
+        ("GeistSemiBold", "geist-semibold", &prop),
+        ("GeistMonoMedium", "geist-mono-medium", &mono),
+    ] {
+        let mut chain = base.clone();
+        chain.insert(0, face.to_owned());
+        fonts
+            .families
+            .insert(FontFamily::Name(family.into()), chain);
+    }
     ctx.set_fonts(fonts);
+}
+
+pub fn medium(size: f32) -> FontId {
+    FontId::new(size, FontFamily::Name("GeistMedium".into()))
+}
+
+pub fn semibold(size: f32) -> FontId {
+    FontId::new(size, FontFamily::Name("GeistSemiBold".into()))
+}
+
+pub fn mono_medium(size: f32) -> FontId {
+    FontId::new(size, FontFamily::Name("GeistMonoMedium".into()))
 }
 
 // ------------------------------------------------------------------ style
 
-/// Applies theme preference + the full design-token pass over egui defaults
-/// for BOTH dark and light styles (docs/DESIGN.md §2 egui mapping).
-pub fn apply(ctx: &egui::Context, pref: &str) {
-    let tp = match pref {
-        "light" => egui::ThemePreference::Light,
-        "dark" => egui::ThemePreference::Dark,
-        _ => egui::ThemePreference::System,
-    };
-    ctx.options_mut(|o| o.theme_preference = tp);
-
+/// Full design-token pass over egui defaults. Dark-only.
+pub fn apply(ctx: &egui::Context) {
+    ctx.options_mut(|o| o.theme_preference = egui::ThemePreference::Dark);
     ctx.style_mut_of(egui::Theme::Dark, |style| {
-        base_style(style);
-        style.visuals = dark_visuals();
-    });
-    ctx.style_mut_of(egui::Theme::Light, |style| {
-        base_style(style);
-        style.visuals = light_visuals();
-    });
-}
-
-fn base_style(style: &mut egui::Style) {
-    style.spacing.item_spacing = egui::vec2(10.0, 8.0);
-    style.spacing.button_padding = egui::vec2(14.0, 7.0);
-    style.spacing.interact_size.y = 30.0;
-    for (ts, font) in style.text_styles.iter_mut() {
-        match ts {
-            egui::TextStyle::Heading => font.size = 22.0,
-            egui::TextStyle::Body | egui::TextStyle::Button => font.size = 15.0,
-            egui::TextStyle::Small => font.size = 12.5,
-            egui::TextStyle::Monospace => font.size = 13.0,
-            _ => {}
+        style.spacing.item_spacing = egui::vec2(8.0, 8.0);
+        style.spacing.button_padding = egui::vec2(12.0, 6.0);
+        style.spacing.interact_size.y = 28.0;
+        for (ts, font) in style.text_styles.iter_mut() {
+            match ts {
+                egui::TextStyle::Heading => font.size = 17.0,
+                egui::TextStyle::Body | egui::TextStyle::Button => font.size = 14.0,
+                egui::TextStyle::Small => font.size = 11.5,
+                egui::TextStyle::Monospace => font.size = 12.0,
+                _ => {}
+            }
         }
-    }
+
+        let v = &mut style.visuals;
+        v.panel_fill = BG;
+        v.window_fill = SURFACE;
+        v.window_stroke = egui::Stroke::new(1.0, BORDER);
+        v.window_corner_radius = egui::CornerRadius::same(14);
+        v.menu_corner_radius = egui::CornerRadius::same(10);
+        v.faint_bg_color = SURFACE;
+        v.extreme_bg_color = Color32::from_rgb(17, 17, 20); // inputs
+
+        let r = egui::CornerRadius::same(6);
+        for w in [
+            &mut v.widgets.noninteractive,
+            &mut v.widgets.inactive,
+            &mut v.widgets.hovered,
+            &mut v.widgets.active,
+            &mut v.widgets.open,
+        ] {
+            w.corner_radius = r;
+        }
+        v.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, BORDER);
+        v.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, FG);
+        v.widgets.inactive.bg_fill = SURFACE_2;
+        v.widgets.inactive.weak_bg_fill = SURFACE_2;
+        v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, BORDER);
+        v.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, TEXT_2);
+        v.widgets.hovered.bg_fill = SURFACE_3;
+        v.widgets.hovered.weak_bg_fill = SURFACE_3;
+        v.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, RING);
+        v.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, FG);
+        v.widgets.active.bg_fill = SURFACE_3;
+        v.widgets.active.weak_bg_fill = SURFACE_3;
+        v.widgets.active.bg_stroke = egui::Stroke::new(1.0, RING);
+        v.widgets.active.fg_stroke = egui::Stroke::new(1.0, FG);
+        v.widgets.open.bg_fill = SURFACE_2;
+        v.widgets.open.weak_bg_fill = SURFACE_2;
+        v.widgets.open.bg_stroke = egui::Stroke::new(1.0, RING);
+        v.widgets.open.fg_stroke = egui::Stroke::new(1.0, FG);
+
+        v.selection.bg_fill = Color32::from_rgba_unmultiplied(16, 185, 129, 55);
+        v.selection.stroke = egui::Stroke::new(1.0, GREEN);
+        v.hyperlink_color = FG;
+        v.error_fg_color = RED;
+        v.warn_fg_color = AMBER;
+        v.override_text_color = None;
+    });
 }
 
-fn round_widgets(v: &mut egui::Visuals) {
-    let r = egui::CornerRadius::same(8);
-    v.widgets.noninteractive.corner_radius = r;
-    v.widgets.inactive.corner_radius = r;
-    v.widgets.hovered.corner_radius = r;
-    v.widgets.active.corner_radius = r;
-    v.widgets.open.corner_radius = r;
-    v.window_corner_radius = egui::CornerRadius::same(12);
-    v.menu_corner_radius = r;
-}
+// ------------------------------------------------------------- components
 
-fn dark_visuals() -> egui::Visuals {
-    let mut v = egui::Visuals::dark();
-    v.panel_fill = D_BG0;
-    v.window_fill = D_BG1;
-    v.window_stroke = egui::Stroke::new(1.0, D_BORDER);
-    v.faint_bg_color = D_BG1; // card fill
-    v.extreme_bg_color = D_BG2; // text inputs
-
-    v.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, D_BORDER);
-    v.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, D_TEXT);
-    v.widgets.inactive.bg_fill = D_BG2;
-    v.widgets.inactive.weak_bg_fill = D_BG2;
-    v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, D_BORDER);
-    v.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, D_TEXT);
-    v.widgets.hovered.bg_fill = D_BG_HOVER;
-    v.widgets.hovered.weak_bg_fill = D_BG_HOVER;
-    v.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, D_BORDER_STRONG);
-    v.widgets.hovered.fg_stroke = egui::Stroke::new(1.5, D_TEXT);
-    v.widgets.active.bg_fill = D_BG_ACTIVE;
-    v.widgets.active.weak_bg_fill = D_BG_ACTIVE;
-    v.widgets.active.bg_stroke = egui::Stroke::new(1.0, D_BORDER_STRONG);
-    v.widgets.active.fg_stroke = egui::Stroke::new(1.5, D_TEXT);
-    v.widgets.open.bg_fill = D_BG1;
-    v.widgets.open.weak_bg_fill = D_BG1;
-    v.widgets.open.bg_stroke = egui::Stroke::new(1.0, D_BORDER_STRONG);
-    v.widgets.open.fg_stroke = egui::Stroke::new(1.0, D_TEXT);
-
-    v.selection.bg_fill = Color32::from_rgba_unmultiplied(94, 234, 212, 64);
-    v.selection.stroke = egui::Stroke::new(1.0, ACCENT_DARK);
-    v.hyperlink_color = ACCENT_DARK;
-    v.error_fg_color = D_ERROR;
-    v.warn_fg_color = D_WARNING;
-    round_widgets(&mut v);
-    v
-}
-
-fn light_visuals() -> egui::Visuals {
-    let mut v = egui::Visuals::light();
-    v.panel_fill = L_BG0;
-    v.window_fill = L_CARD;
-    v.window_stroke = egui::Stroke::new(1.0, L_BORDER);
-    v.faint_bg_color = L_CARD; // card fill (differentiated by border)
-    v.extreme_bg_color = L_CARD; // text inputs
-
-    v.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, L_BORDER);
-    v.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, L_TEXT);
-    v.widgets.inactive.bg_fill = L_CARD;
-    v.widgets.inactive.weak_bg_fill = L_CARD;
-    v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, L_BORDER);
-    v.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, L_TEXT);
-    v.widgets.hovered.bg_fill = L_BG_HOVER;
-    v.widgets.hovered.weak_bg_fill = L_BG_HOVER;
-    v.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, L_BORDER_STRONG);
-    v.widgets.hovered.fg_stroke = egui::Stroke::new(1.5, L_TEXT);
-    v.widgets.active.bg_fill = L_BG_ACTIVE;
-    v.widgets.active.weak_bg_fill = L_BG_ACTIVE;
-    v.widgets.active.bg_stroke = egui::Stroke::new(1.0, L_BORDER_STRONG);
-    v.widgets.active.fg_stroke = egui::Stroke::new(1.5, L_TEXT);
-    v.widgets.open.bg_fill = L_CARD;
-    v.widgets.open.weak_bg_fill = L_CARD;
-    v.widgets.open.bg_stroke = egui::Stroke::new(1.0, L_BORDER_STRONG);
-    v.widgets.open.fg_stroke = egui::Stroke::new(1.0, L_TEXT);
-
-    v.selection.bg_fill = Color32::from_rgba_unmultiplied(13, 148, 136, 50);
-    v.selection.stroke = egui::Stroke::new(1.0, ACCENT_LIGHT);
-    v.hyperlink_color = ACCENT_LIGHT;
-    v.error_fg_color = L_ERROR;
-    v.warn_fg_color = L_WARNING;
-    round_widgets(&mut v);
-    v
-}
-
-// ------------------------------------------------------------- containers
-
-/// A subtle card container for list entries and sections.
-/// r-lg 12, 16px inner margin, bg-step fill + 1px hairline (DESIGN.md §3).
-pub fn card(ui: &egui::Ui) -> egui::Frame {
-    egui::Frame::group(ui.style())
-        .fill(ui.visuals().faint_bg_color)
-        .stroke(egui::Stroke::new(1.0, border(ui)))
-        .corner_radius(egui::CornerRadius::same(12))
+/// Card container: surface fill, hairline ring, radius 10, 16px inset.
+pub fn card(_ui: &egui::Ui) -> egui::Frame {
+    egui::Frame::default()
+        .fill(SURFACE)
+        .stroke(egui::Stroke::new(1.0, BORDER))
+        .corner_radius(egui::CornerRadius::same(10))
         .inner_margin(16.0)
 }
 
-/// The ONE accent-filled button allowed per screen (DESIGN.md §5).
-pub fn accent_button(ui: &mut egui::Ui, text: impl Into<String>) -> egui::Response {
-    let fill = accent(ui);
-    let fg = on_accent(ui);
+/// Small mono uppercase section label ("ENGINE PARAMETERS").
+pub fn section_label(ui: &mut egui::Ui, text: &str) {
+    ui.label(
+        egui::RichText::new(text.to_uppercase())
+            .font(mono_medium(11.0))
+            .color(MUTED),
+    );
+}
+
+/// Mono uppercase micro-text (timestamps, readouts).
+pub fn mono_upper(text: &str, size: f32, color: Color32) -> egui::RichText {
+    egui::RichText::new(text.to_uppercase())
+        .font(FontId::monospace(size))
+        .color(color)
+}
+
+/// Hotkey chip: amber mono uppercase on an amber tint, radius 4.
+pub fn key_chip(ui: &mut egui::Ui, label: &str) {
+    egui::Frame::default()
+        .fill(tint(AMBER))
+        .corner_radius(egui::CornerRadius::same(4))
+        .inner_margin(egui::Margin::symmetric(8, 4))
+        .show(ui, |ui| {
+            ui.label(
+                egui::RichText::new(label.to_uppercase())
+                    .font(mono_medium(11.0))
+                    .color(AMBER),
+            );
+        });
+}
+
+/// Status LED: small filled dot with a soft halo. `pulse` animates opacity
+/// on a 2s cycle (caller must keep repainting, e.g. the overlay).
+pub fn led(ui: &mut egui::Ui, color: Color32, pulse: bool) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+    let a = if pulse {
+        let t = ui.input(|i| i.time);
+        let phase = (t * std::f64::consts::TAU / 2.0).cos() as f32; // 2s cycle
+        0.4 + 0.6 * (0.5 + 0.5 * phase)
+    } else {
+        1.0
+    };
+    let c = color.linear_multiply(a);
+    let p = ui.painter();
+    p.circle_filled(rect.center(), 7.0, color.linear_multiply(0.16 * a));
+    p.circle_filled(rect.center(), 3.5, c);
+}
+
+/// Hardware-style toggle switch — signal green when on.
+pub fn toggle(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
+    let size = egui::vec2(36.0, 20.0);
+    let (rect, mut resp) = ui.allocate_exact_size(size, egui::Sense::click());
+    if resp.clicked() {
+        *on = !*on;
+        resp.mark_changed();
+    }
+    let t = ui.ctx().animate_bool_responsive(resp.id, *on);
+    let mix = |a: Color32, b: Color32| {
+        let (a, b) = (egui::Rgba::from(a), egui::Rgba::from(b));
+        Color32::from(a * (1.0 - t) + b * t)
+    };
+    let p = ui.painter();
+    p.rect_filled(rect, 10.0, mix(SURFACE_3, GREEN));
+    p.rect_stroke(
+        rect,
+        10.0,
+        egui::Stroke::new(1.0, mix(RING, GREEN)),
+        egui::StrokeKind::Inside,
+    );
+    let x = egui::lerp((rect.left() + 10.0)..=(rect.right() - 10.0), t);
+    p.circle_filled(egui::pos2(x, rect.center().y), 7.0, FG);
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// The one high-emphasis button per screen: zinc-100 fill, zinc-950 text.
+pub fn primary_button(ui: &mut egui::Ui, text: impl Into<String>) -> egui::Response {
     ui.add(
-        egui::Button::new(egui::RichText::new(text.into()).strong().color(fg))
-            .fill(fill)
-            .corner_radius(egui::CornerRadius::same(8)),
+        egui::Button::new(
+            egui::RichText::new(text.into())
+                .font(medium(13.5))
+                .color(BG),
+        )
+        .fill(FG)
+        .stroke(egui::Stroke::NONE)
+        .corner_radius(egui::CornerRadius::same(6)),
     )
 }

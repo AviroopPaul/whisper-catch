@@ -5271,6 +5271,7 @@ dependencies = [
  "egui-phosphor",
  "env_logger 0.11.11",
  "fs2",
+ "image",
  "log",
  "notify-rust",
  "serde",
